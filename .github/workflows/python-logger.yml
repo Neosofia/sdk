@@ -1,0 +1,44 @@
+name: python-logger
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "python/logger/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/python-logger.yml"
+  pull_request:
+    paths:
+      - "python/logger/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/python-logger.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Checkout schemas (for log schema validation)
+        uses: actions/checkout@v5
+        with:
+          repository: Neosofia/schemas
+          path: _schemas
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync workspace
+        run: uv sync --frozen
+
+      - name: Run logger tests
+        env:
+          SCHEMAS_DIR: ${{ github.workspace }}/_schemas
+        run: uv run --package neosofia-logger pytest python/logger/tests -v

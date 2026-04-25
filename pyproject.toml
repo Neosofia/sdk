@@ -1,0 +1,11 @@
+[project]
+name = "neosofia-sdk"
+version = "0.0.0"
+description = "Neosofia platform SDK — polyglot collection of shared packages. This top-level project exists only to declare the uv workspace; nothing is published from this root."
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = ["python/*"]
+
+[tool.uv]
+package = false
