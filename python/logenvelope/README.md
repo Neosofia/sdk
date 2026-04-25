@@ -1,18 +1,42 @@
-# neosofia-logger
+# logenvelope
 
-Structured JSON logger for Neosofia platform services. Output conforms
+Structured JSON logger for web service platforms. Output conforms
 to the [log envelope schema](https://github.com/Neosofia/schemas/blob/main/log-v1.0.0.json).
 
 ## Install
 
+### With `uv` (recommended)
+
+Add to your `pyproject.toml`:
+
+```toml
+dependencies = [
+    "logenvelope @ git+https://github.com/Neosofia/sdk.git#subdirectory=python/logenvelope",
+]
 ```
-pip install "neosofia-logger @ git+https://github.com/Neosofia/sdk.git#subdirectory=python/logger"
+
+Then sync:
+
+```bash
+uv sync
+```
+
+Or in one command:
+
+```bash
+uv add "logenvelope @ git+https://github.com/Neosofia/sdk.git#subdirectory=python/logenvelope"
+```
+
+### With pip
+
+```bash
+pip install "logenvelope @ git+https://github.com/Neosofia/sdk.git#subdirectory=python/logenvelope"
 ```
 
 ## Usage
 
 ```python
-from neosofia_logger import setup_logging, log_event, emits
+from logenvelope import setup_logging, log_event, emits
 
 # At service startup:
 setup_logging("authentication")  # service name
@@ -32,7 +56,8 @@ log_event(
 
 Each `log_event` call produces a single JSON line with `timestamp`,
 `level`, `message`, `event_type`, and any keyword arguments merged in.
-The output validates against the platform `log-v1.0.0.json` schema.
+The output validates against the [`log-v1.0.0.json`](https://github.com/Neosofia/schemas/blob/main/log-v1.0.0.json)
+schema published in the [Neosofia/schemas](https://github.com/Neosofia/schemas) repository.
 
 ## Environment
 

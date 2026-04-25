@@ -1,19 +1,19 @@
-name: python-logger
+name: logenvelope
 
 on:
   push:
     branches: [main]
     paths:
-      - "python/logger/**"
+      - "python/logenvelope/**"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/python-logger.yml"
+      - ".github/workflows/logenvelope.yml"
   pull_request:
     paths:
-      - "python/logger/**"
+      - "python/logenvelope/**"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/python-logger.yml"
+      - ".github/workflows/logenvelope.yml"
 
 jobs:
   test:
@@ -41,4 +41,4 @@ jobs:
       - name: Run logger tests
         env:
           SCHEMAS_DIR: ${{ github.workspace }}/_schemas
-        run: uv run --package neosofia-logger pytest python/logger/tests -v
+        run: uv run --package logenvelope pytest python/logenvelope/tests -v

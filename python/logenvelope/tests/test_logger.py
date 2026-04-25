@@ -1,8 +1,10 @@
-"""Tests for neosofia_logger.
+"""Tests for logenvelope.
 
-Output is validated against the platform log envelope schema.
-The schema is loaded from a URL by default; set SCHEMAS_DIR in the
-environment to load it from a local path (useful for offline dev).
+Output is validated against a log envelope schema. By default the schema is
+fetched from the Neosofia schemas repo on GitHub; override either of:
+
+- ``SCHEMAS_DIR``: load schema files from a local directory.
+- ``LOG_SCHEMA_BASE_URL``: load schema files from a different base URL.
 """
 from __future__ import annotations
 
@@ -16,10 +18,11 @@ import urllib.request
 import jsonschema
 import pytest
 
-from neosofia_logger import JSONFormatter, emits, log_event, setup_logging
+from logenvelope import JSONFormatter, emits, log_event, setup_logging
 
 
-_SCHEMAS_BASE_URL = "https://raw.githubusercontent.com/Neosofia/schemas/main"
+_DEFAULT_SCHEMAS_BASE_URL = "https://raw.githubusercontent.com/Neosofia/schemas/main"
+_SCHEMAS_BASE_URL = os.environ.get("LOG_SCHEMA_BASE_URL", _DEFAULT_SCHEMAS_BASE_URL)
 _SCHEMAS_DIR = os.environ.get("SCHEMAS_DIR")
 
 

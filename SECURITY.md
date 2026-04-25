@@ -8,7 +8,7 @@ this repository, please report it privately.
 **Email:** security@neosofia.com
 
 Please include:
-- The package and version (e.g. `neosofia-logger 0.1.0`)
+- The package and version (e.g. `logenvelope 0.1.0`)
 - A description of the issue and its potential impact
 - A reproduction (minimal code that demonstrates the problem)
 
