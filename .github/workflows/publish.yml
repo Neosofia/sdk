@@ -1,0 +1,53 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "logenvelope-*"
+      - "authentication-in-the-middle-*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync workspace
+        run: uv sync --frozen
+
+      - name: Determine package from tag
+        id: package
+        run: |
+          TAG=${{ github.ref_name }}
+          if [[ "$TAG" == logenvelope-* ]]; then
+            echo "name=logenvelope" >> $GITHUB_OUTPUT
+            echo "path=python/logenvelope" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" == authentication-in-the-middle-* ]]; then
+            echo "name=authentication-in-the-middle" >> $GITHUB_OUTPUT
+            echo "path=python/authentication-middleware" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build distribution
+        run: uv build --package ${{ steps.package.outputs.name }} ${{ steps.package.outputs.path }}
+
+      - name: Publish to GitHub Package Registry
+        env:
+          UV_PUBLISH_URL: https://npm.pkg.github.com
+          UV_PUBLISH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uv publish \
+            --publish-url https://pypi.pkg.github.com/Neosofia \
+            --token ${{ secrets.GITHUB_TOKEN }}
