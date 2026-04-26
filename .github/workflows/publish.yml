@@ -35,10 +35,33 @@ jobs:
           if [[ "$TAG" == logenvelope-* ]]; then
             echo "name=logenvelope" >> $GITHUB_OUTPUT
             echo "path=python/logenvelope" >> $GITHUB_OUTPUT
+            echo "pyproject_path=python/logenvelope/pyproject.toml" >> $GITHUB_OUTPUT
           elif [[ "$TAG" == authentication-in-the-middle-* ]]; then
             echo "name=authentication-in-the-middle" >> $GITHUB_OUTPUT
             echo "path=python/authentication-middleware" >> $GITHUB_OUTPUT
+            echo "pyproject_path=python/authentication-middleware/pyproject.toml" >> $GITHUB_OUTPUT
           fi
+
+      - name: Validate tag matches package version
+        run: |
+          TAG=${{ github.ref_name }}
+          PYPROJECT_PATH=${{ steps.package.outputs.pyproject_path }}
+          
+          # Extract version from tag (e.g., "logenvelope-0.1.0" -> "0.1.0")
+          TAG_VERSION=$(echo "$TAG" | sed 's/.*-//')
+          
+          # Extract version from pyproject.toml
+          PYPROJECT_VERSION=$(grep '^version = ' "$PYPROJECT_PATH" | sed 's/version = "\(.*\)"/\1/')
+          
+          echo "Tag version: $TAG_VERSION"
+          echo "Package version: $PYPROJECT_VERSION"
+          
+          if [[ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]]; then
+            echo "❌ Error: Tag version ($TAG_VERSION) does not match package version ($PYPROJECT_VERSION)"
+            exit 1
+          fi
+          
+          echo "✓ Version match confirmed"
 
       - name: Build distribution
         run: uv build --package ${{ steps.package.outputs.name }} ${{ steps.package.outputs.path }}
