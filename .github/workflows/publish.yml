@@ -28,6 +28,9 @@ jobs:
       - name: Sync workspace
         run: uv sync --frozen
 
+      - name: Install build tools
+        run: uv pip install hatchling
+
       - name: Determine package from tag
         id: package
         run: |
