@@ -64,13 +64,11 @@ jobs:
           echo "✓ Version match confirmed"
 
       - name: Build distribution
-        run: uv build --package ${{ steps.package.outputs.name }} ${{ steps.package.outputs.path }}
+        run: cd ${{ steps.package.outputs.path }} && uv build
 
       - name: Publish to GitHub Package Registry
-        env:
-          UV_PUBLISH_URL: https://npm.pkg.github.com
-          UV_PUBLISH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          cd ${{ steps.package.outputs.path }}
           uv publish \
             --publish-url https://pypi.pkg.github.com/Neosofia \
             --token ${{ secrets.GITHUB_TOKEN }}
