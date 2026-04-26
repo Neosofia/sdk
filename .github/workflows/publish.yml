@@ -10,8 +10,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -27,9 +26,6 @@ jobs:
 
       - name: Sync workspace
         run: uv sync --frozen
-
-      - name: Install build tools
-        run: uv pip install hatchling
 
       - name: Determine package from tag
         id: package
@@ -69,8 +65,10 @@ jobs:
       - name: Build distribution
         run: uv build ${{ steps.package.outputs.path }}
 
-      - name: Publish to GitHub Package Registry
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          uv publish dist/ \
-            --publish-url https://pypi.pkg.github.com/Neosofia \
-            --token ${{ secrets.GITHUB_TOKEN }}
+          gh release create ${{ github.ref_name }} dist/* \
+            --title "${{ github.ref_name }}" \
+            --notes "Release ${{ github.ref_name }}"
