@@ -19,20 +19,21 @@ def emits(*event_types: str) -> Callable:
     return decorator
 
 
-def log_event(event_type: str, **kwargs: object) -> None:
+def log_event(event_type: str, message: str = "", **kwargs: object) -> None:
     """Emit a structured log event at INFO level.
 
     ``setup_logging`` must have been called first to register the logger name.
 
     Args:
         event_type: Machine-readable event identifier (e.g. ``"platform_token_issued"``).
+        message: Human-readable description of the event.
         **kwargs: Additional fields merged into the JSON envelope (e.g. ``actor``,
             ``trace_id``, ``reason``).
     """
     if state.logger_name is None:
         raise RuntimeError("log_event called before setup_logging")
     logger = logging.getLogger(state.logger_name)
-    record = logger.makeRecord(logger.name, logging.INFO, "", 0, "", (), None)
+    record = logger.makeRecord(logger.name, logging.INFO, "", 0, message, (), None)
     record.event_type = event_type  # type: ignore[attr-defined]
     record.extra_fields = kwargs  # type: ignore[attr-defined]
     logger.handle(record)
