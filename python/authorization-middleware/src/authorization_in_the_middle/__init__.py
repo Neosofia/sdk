@@ -30,6 +30,7 @@ from authorization_in_the_middle.client import PolicySetClient
 from authorization_in_the_middle.decorators import with_authorization
 from authorization_in_the_middle.evaluator import CedarEvaluator, StubEvaluator
 from authorization_in_the_middle.entities import build_entity_payload, build_entity_ref, entity_uid
+from authorization_in_the_middle.flask_identity import extract_platform_principal_uid, extract_platform_principal_entity
 from authorization_in_the_middle.policy_sources import (
     FilesystemPolicySetSource,
     HttpPolicySetSource,
@@ -48,4 +49,6 @@ __all__ = [
     "build_entity_payload",
     "build_entity_ref",
     "entity_uid",
+    "extract_platform_principal_uid",
+    "extract_platform_principal_entity",
 ]
