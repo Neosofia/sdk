@@ -9,9 +9,7 @@ import hashlib
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Protocol
-
-import requests
+from typing import Any, Protocol
 
 
 PolicySetDict = dict[str, Any]
@@ -87,55 +85,3 @@ class StaticPolicySetSource:
 
     def get_policy_set(self) -> PolicySetDict:
         return self._policy_set
-
-
-class HttpPolicySetSource:
-    """Fetch and cache a Cedar policy bundle from a remote HTTP service."""
-
-    def __init__(
-        self,
-        base_url: str,
-        timeout: int = 5,
-        fetch_fn: Callable | None = None,
-    ) -> None:
-        self._base_url = base_url.rstrip("/")
-        self._timeout = timeout
-        self._fetch = fetch_fn or requests.get
-
-        self._cached: PolicySetDict | None = None
-        self._cached_version: str | None = None
-        self._expires_at: float = 0.0
-
-    def get_policy_set(self) -> PolicySetDict:
-        now = time.monotonic()
-
-        if self._cached is not None and now < self._expires_at:
-            return self._cached
-
-        if self._cached_version is not None:
-            version_resp = self._fetch(
-                f"{self._base_url}/api/policies/version",
-                timeout=self._timeout,
-            )
-            version_resp.raise_for_status()
-            version_data = version_resp.json()
-
-            if version_data["version"] == self._cached_version:
-                self._expires_at = now + int(version_data.get("cache_max_age", 60))
-                return self._cached  # type: ignore[return-value]
-
-        resp = self._fetch(
-            f"{self._base_url}/api/policies",
-            timeout=self._timeout,
-        )
-        resp.raise_for_status()
-        data: PolicySetDict = resp.json()
-        cache_max_age = int(resp.headers.get("X-Authorization-Cache-Expiry", 60))
-
-        self._cached = data
-        self._cached_version = data["version"]
-        self._expires_at = now + cache_max_age
-        return data
-
-
-PolicySetClient = HttpPolicySetSource

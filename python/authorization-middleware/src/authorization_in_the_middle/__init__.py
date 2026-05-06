@@ -26,14 +26,15 @@ def get_patient(patient_id):
     ...
 """
 
-from authorization_in_the_middle.client import PolicySetClient
 from authorization_in_the_middle.decorators import with_authorization
 from authorization_in_the_middle.evaluator import CedarEvaluator, StubEvaluator
 from authorization_in_the_middle.entities import build_entity_payload, build_entity_ref, entity_uid
-from authorization_in_the_middle.flask_identity import extract_platform_principal_uid, extract_platform_principal_entity
+from authorization_in_the_middle.flask_identity import (
+    extract_jwt_principal_uid,
+    extract_jwt_principal_entity,
+)
 from authorization_in_the_middle.policy_sources import (
     FilesystemPolicySetSource,
-    HttpPolicySetSource,
     StaticPolicySetSource,
 )
 
@@ -41,14 +42,12 @@ __version__ = "0.1.0"
 __all__ = [
     "CedarEvaluator",
     "FilesystemPolicySetSource",
-    "HttpPolicySetSource",
-    "PolicySetClient",
     "StaticPolicySetSource",
     "StubEvaluator",
     "with_authorization",
     "build_entity_payload",
     "build_entity_ref",
     "entity_uid",
-    "extract_platform_principal_uid",
-    "extract_platform_principal_entity",
+    "extract_jwt_principal_uid",
+    "extract_jwt_principal_entity",
 ]
