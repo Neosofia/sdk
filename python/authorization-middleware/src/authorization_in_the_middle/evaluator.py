@@ -1,15 +1,4 @@
-"""
-Cedar policy evaluators.
-
-CedarEvaluator — in-process evaluator using the cedarpy library (PyO3 Rust bindings).
-    Fetches the current policy set from the Authorization Service via PolicySetClient
-    and evaluates requests locally — no sidecar process required.  Each service is
-    responsible for installing cedarpy (which ships a pre-compiled Rust wheel) in its
-    Dockerfile.
-
-StubEvaluator — configurable evaluator for tests.  Calls an injected callable
-    so tests can assert on the arguments and control the decision.
-"""
+"""Cedar policy evaluators."""
 
 from typing import Any, Callable
 
@@ -20,16 +9,21 @@ class CedarEvaluator:
     """
     In-process Cedar policy evaluator backed by cedarpy (PyO3 Rust bindings).
 
-    Fetches the current policy set from the Authorization Service on each call;
-    caching is handled transparently by the supplied PolicySetClient.
+    Fetches the current policy set from the configured policy source on each call;
+    caching is handled transparently by that source.
 
     Args:
-        policy_client:  A PolicySetClient instance pointed at the Authorization
-                        Service, e.g. PolicySetClient(base_url="http://authorization:8006").
+        policy_source:  Any object implementing get_policy_set(). In most services
+                        this will be a FilesystemPolicySetSource pointed at a
+                        service-owned policies directory.
+        policy_client:  Deprecated compatibility alias for policy_source.
     """
 
-    def __init__(self, policy_client) -> None:
-        self._policy_client = policy_client
+    def __init__(self, policy_source=None, *, policy_client=None) -> None:
+        resolved_source = policy_source or policy_client
+        if resolved_source is None:
+            raise TypeError("CedarEvaluator requires a policy_source")
+        self._policy_source = resolved_source
 
     def is_authorized(
         self,
@@ -56,7 +50,7 @@ class CedarEvaluator:
         Returns:
             True if the decision is Allow, False for Deny (fail-closed on error).
         """
-        policy_set = self._policy_client.get_policy_set()
+        policy_set = self._policy_source.get_policy_set()
         policies_text = "\n\n".join(p["content"] for p in policy_set["policies"])
         request = {
             "principal": principal,
@@ -72,8 +66,8 @@ class StubEvaluator:
     """
     Configurable stub evaluator for tests and local development.
 
-    The decision is delegated to a user-supplied callable so tests can:
-      - Assert on the exact principal / action / resource values.
+        The decision is delegated to a user-supplied callable so tests can:
+            - Assert on the exact principal / action / resource / context values.
       - Control whether a request is allowed or denied.
       - Simulate evaluation failures.
 

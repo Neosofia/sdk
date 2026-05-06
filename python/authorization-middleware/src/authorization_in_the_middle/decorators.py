@@ -12,6 +12,7 @@ from functools import wraps
 from typing import Any, Callable
 
 from flask import jsonify, make_response
+from werkzeug.exceptions import BadRequest, NotFound
 
 
 def with_authorization(
@@ -20,6 +21,7 @@ def with_authorization(
     action: str,
     resource_fn: Callable[[], str],
     entities_fn: Callable[[], list[dict[str, Any]]] | None = None,
+    context_fn: Callable[[], dict[str, Any]] | None = None,
     log_event: Callable = lambda *a, **k: None,
 ) -> Callable:
     """
@@ -27,15 +29,15 @@ def with_authorization(
 
     Args:
         evaluator:     An object with is_authorized(principal, action, resource,
-                       entities, context) -> bool.  Use CedarEvaluator in
-                       production and StubEvaluator in tests.  Create the
-                       evaluator once at module level — its internal
-                       PolicySetClient caches policies between requests.
+                   entities, context) -> bool. Use CedarEvaluator in
+                   production and StubEvaluator in tests. Create the
+                   evaluator once at module level — its policy source may
+                   cache bundles between requests.
         principal_fn:  Zero-argument callable invoked at request time to return
                        the Cedar principal UID string, e.g.
                        ``lambda: request.headers["X-Principal"]``.
         action:        Cedar action UID string, fixed at decoration time, e.g.
-                       ``'Action::"patient:view"'``.
+                   ``Capabilities.PATIENT_RECORD_READ``.
         resource_fn:   Zero-argument callable invoked at request time to return
                        the Cedar resource UID string, e.g.
                        ``lambda: f'cdp::PatientRecord::"{request.view_args["id"]}"'``.
@@ -43,6 +45,8 @@ def with_authorization(
                        Cedar entity dicts needed for evaluation.  Defaults to an
                        empty list (sufficient when the evaluator resolves entities
                        itself, e.g. cedar-agent with pre-loaded data).
+        context_fn:    Optional zero-argument callable that returns Cedar
+                   request context derived from the current request.
         log_event:     Optional structured-logging callable with the same signature
                        as logenvelope's log_event(event_type, **kwargs).
 
@@ -51,9 +55,7 @@ def with_authorization(
 
     Example::
 
-        _evaluator = CedarEvaluator(
-            policy_client=PolicySetClient(base_url="http://authorization:8006")
-        )
+        _evaluator = CedarEvaluator(policy_source=policy_source)
 
         @app.route("/patients/<patient_id>")
         @with_authorization(
@@ -73,16 +75,33 @@ def with_authorization(
                 principal = principal_fn()
                 resource = resource_fn()
                 entities = entities_fn() if entities_fn else []
-                allowed = evaluator.is_authorized(principal, action, resource, entities)
+                context = context_fn() if context_fn else {}
+                allowed = evaluator.is_authorized(principal, action, resource, entities, context)
+            except BadRequest as exc:
+                log_event(
+                    "authorization.invalid_request",
+                    route=f.__name__,
+                    action=action,
+                    error_type=type(exc).__name__,
+                )
+                return make_response(jsonify({"error": "invalid_request"}), 400)
+            except NotFound as exc:
+                log_event(
+                    "authorization.resource_not_found",
+                    route=f.__name__,
+                    action=action,
+                    error_type=type(exc).__name__,
+                )
+                return make_response(jsonify({"error": "not_found"}), 404)
             except Exception as exc:
                 log_event(
                     "authorization.evaluation_error",
                     route=f.__name__,
                     action=action,
-                    error=str(exc),
+                    error_type=type(exc).__name__,
                 )
                 return make_response(
-                    jsonify({"error": "authorization service unavailable"}), 503
+                    jsonify({"error": "authorization_unavailable"}), 503
                 )
 
             if not allowed:
