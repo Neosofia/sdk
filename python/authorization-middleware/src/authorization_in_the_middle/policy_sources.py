@@ -55,6 +55,7 @@ def _build_policy_set(policies_dir: Path) -> PolicySetDict:
         "updated_at": updated_at,
         "schema_content": schema_content,
         "policies": policies,
+        "policies_text": "\n\n".join(p["content"] for p in policies),
     }
 
 

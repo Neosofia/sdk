@@ -51,7 +51,7 @@ class CedarEvaluator:
             True if the decision is Allow, False for Deny (fail-closed on error).
         """
         policy_set = self._policy_source.get_policy_set()
-        policies_text = "\n\n".join(p["content"] for p in policy_set["policies"])
+        policies_text = policy_set.get("policies_text") or "\n\n".join(p["content"] for p in policy_set["policies"])
         request = {
             "principal": principal,
             "action": action,
