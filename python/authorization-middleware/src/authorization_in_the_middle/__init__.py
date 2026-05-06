@@ -29,6 +29,7 @@ def get_patient(patient_id):
 from authorization_in_the_middle.client import PolicySetClient
 from authorization_in_the_middle.decorators import with_authorization
 from authorization_in_the_middle.evaluator import CedarEvaluator, StubEvaluator
+from authorization_in_the_middle.entities import build_entity_payload, build_entity_ref, entity_uid
 from authorization_in_the_middle.policy_sources import (
     FilesystemPolicySetSource,
     HttpPolicySetSource,
@@ -44,4 +45,7 @@ __all__ = [
     "StaticPolicySetSource",
     "StubEvaluator",
     "with_authorization",
+    "build_entity_payload",
+    "build_entity_ref",
+    "entity_uid",
 ]
