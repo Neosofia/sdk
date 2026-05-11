@@ -113,10 +113,12 @@ def with_security(
                     inferred_loader,
                     id_arg=target_id_arg,
                 )
+        else:
+            inferred_namespace = namespace
 
         authz_decorator = with_authorization(
             evaluator_proxy,
-            principal_fn=lambda: extract_jwt_principal_uid(namespace),
+            principal_fn=lambda: extract_jwt_principal_uid(inferred_namespace),
             action=action,
             resource_fn=resource_fn_local,
             entities_fn=entities_fn_local,

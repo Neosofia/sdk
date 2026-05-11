@@ -7,7 +7,7 @@ packages = ["src/authorization_in_the_middle"]
 
 [project]
 name = "authorization-in-the-middle"
-version = "0.3.0"
+version = "0.3.1"
 description = "Authorization middleware for Neosofia platform services."
 readme = "README.md"
 license = { text = "Apache-2.0" }
