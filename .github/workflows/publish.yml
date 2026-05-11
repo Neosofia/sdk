@@ -5,6 +5,7 @@ on:
     tags:
       - "logenvelope-*"
       - "authentication-in-the-middle-*"
+      - "authorization-in-the-middle-*"
 
 jobs:
   publish:
@@ -39,6 +40,10 @@ jobs:
             echo "name=authentication-in-the-middle" >> $GITHUB_OUTPUT
             echo "path=python/authentication-middleware" >> $GITHUB_OUTPUT
             echo "pyproject_path=python/authentication-middleware/pyproject.toml" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" == authorization-in-the-middle-* ]]; then
+            echo "name=authorization-in-the-middle" >> $GITHUB_OUTPUT
+            echo "path=python/authorization-middleware" >> $GITHUB_OUTPUT
+            echo "pyproject_path=python/authorization-middleware/pyproject.toml" >> $GITHUB_OUTPUT
           fi
 
       - name: Validate tag matches package version
