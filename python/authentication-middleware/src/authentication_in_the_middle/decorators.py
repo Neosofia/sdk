@@ -31,11 +31,15 @@ def with_authentication(
             # Resolve config at request time if not explicitly provided
             resolved_public_key = public_key or current_app.config.get("JWT_PUBLIC_KEY")
             resolved_issuer = issuer or current_app.config.get("JWT_ISSUER")
-            resolved_audience = audience or current_app.config.get("JWT_AUDIENCE")
+            
+            resolved_audience = audience
+            if resolved_audience is None:
+                resolved_audience = current_app.config.get("SERVICE_NAME")
+            
             resolved_jwks_uri = jwks_uri or current_app.config.get("JWT_JWKS_URI")
             
             if not resolved_issuer or not resolved_audience:
-                return make_response(jsonify({"error": "server_error", "detail": "Missing JWT issuer/audience config"}), 500)
+                return make_response(jsonify({"error": "server_error", "detail": f"Missing config. issuer={resolved_issuer}, audience={resolved_audience}"}), 500)
 
             jwks_client = pyjwt.PyJWKClient(resolved_jwks_uri) if resolved_jwks_uri else None
             

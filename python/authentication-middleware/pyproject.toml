@@ -1,6 +1,6 @@
 [project]
 name = "authentication-in-the-middle"
-version = "0.5.0"
+version = "0.5.1"
 description = "Authentication middleware for Neosofia platform services."
 readme = "README.md"
 license = { text = "Apache-2.0" }
