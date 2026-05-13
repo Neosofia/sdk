@@ -36,6 +36,9 @@ jobs:
       - name: Determine package from tag
         id: package
         run: |
+          echo "EVENT_NAME: ${GITHUB_EVENT_NAME}"
+          echo "INPUT_TAG: '${{ github.event.inputs.tag }}'"
+
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             TAG="${{ github.event.inputs.tag }}"
           else
@@ -64,11 +67,7 @@ jobs:
 
       - name: Validate tag matches package version
         run: |
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${{ github.ref_name }}"
-          fi
+          TAG="${{ steps.package.outputs.tag }}"
           PYPROJECT_PATH=${{ steps.package.outputs.pyproject_path }}
 
           TAG_VERSION="${TAG##*/v}"
@@ -93,6 +92,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create ${{ github.ref_name }} dist/* \
-            --title "${{ github.ref_name }}" \
-            --notes "Release ${{ github.ref_name }}"
+          RELEASE_TAG="${{ steps.package.outputs.tag }}"
+          gh release create "$RELEASE_TAG" dist/* \
+            --title "$RELEASE_TAG" \
+            --notes "Release $RELEASE_TAG"
