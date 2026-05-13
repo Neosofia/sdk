@@ -3,9 +3,14 @@ name: publish
 on:
   push:
     tags:
-      - "logenvelope-*"
-      - "authentication-in-the-middle-*"
-      - "authorization-in-the-middle-*"
+      - "logenvelope/v*"
+      - "authentication-in-the-middle/v*"
+      - "authorization-in-the-middle/v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release"
+        required: true
 
 jobs:
   publish:
@@ -31,40 +36,54 @@ jobs:
       - name: Determine package from tag
         id: package
         run: |
-          TAG=${{ github.ref_name }}
-          if [[ "$TAG" == logenvelope-* ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+
+          echo "Using tag: $TAG"
+
+          if [[ "$TAG" == logenvelope/v* ]]; then
             echo "name=logenvelope" >> $GITHUB_OUTPUT
             echo "path=python/logenvelope" >> $GITHUB_OUTPUT
             echo "pyproject_path=python/logenvelope/pyproject.toml" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" == authentication-in-the-middle-* ]]; then
+          elif [[ "$TAG" == authentication-in-the-middle/v* ]]; then
             echo "name=authentication-in-the-middle" >> $GITHUB_OUTPUT
             echo "path=python/authentication-middleware" >> $GITHUB_OUTPUT
             echo "pyproject_path=python/authentication-middleware/pyproject.toml" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" == authorization-in-the-middle-* ]]; then
+          elif [[ "$TAG" == authorization-in-the-middle/v* ]]; then
             echo "name=authorization-in-the-middle" >> $GITHUB_OUTPUT
             echo "path=python/authorization-middleware" >> $GITHUB_OUTPUT
             echo "pyproject_path=python/authorization-middleware/pyproject.toml" >> $GITHUB_OUTPUT
+          else
+            echo "Unsupported tag format: $TAG"
+            exit 1
           fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Validate tag matches package version
         run: |
-          TAG=${{ github.ref_name }}
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
           PYPROJECT_PATH=${{ steps.package.outputs.pyproject_path }}
-          
-          # Extract version from tag (e.g., "logenvelope-0.1.0" -> "0.1.0")
-          TAG_VERSION=$(echo "$TAG" | sed 's/.*-//')
-          
-          # Extract version from pyproject.toml
+
+          TAG_VERSION="${TAG##*/v}"
+          TAG_VERSION="${TAG_VERSION#v}"
+
           PYPROJECT_VERSION=$(grep '^version = ' "$PYPROJECT_PATH" | sed 's/version = "\(.*\)"/\1/')
-          
+
           echo "Tag version: $TAG_VERSION"
           echo "Package version: $PYPROJECT_VERSION"
-          
+
           if [[ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]]; then
             echo "❌ Error: Tag version ($TAG_VERSION) does not match package version ($PYPROJECT_VERSION)"
             exit 1
           fi
-          
+
           echo "✓ Version match confirmed"
 
       - name: Build distribution
