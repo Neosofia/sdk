@@ -26,6 +26,7 @@ def setup_logging(name: str, level: str | None = None) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, log_level, logging.INFO))
     logger.handlers.clear()
+    logger.propagate = False
     handler = logging.StreamHandler()
     handler.setFormatter(JSONFormatter())
     logger.addHandler(handler)

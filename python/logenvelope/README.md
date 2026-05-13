@@ -54,6 +54,20 @@ log_event(
 )
 ```
 
+## Gunicorn integration
+
+If your service uses Gunicorn, use the package helper to emit structured
+access logs with discrete HTTP fields instead of raw text.
+
+```python
+from logenvelope.gunicorn import JSONLogger
+
+logger_class = JSONLogger
+```
+
+Gunicorn access log records are enriched with fields like `client.ip`, 
+`http.method`, `http.target`, `http.status_code`, and `http.response_time_ms`.
+
 Each `log_event` call produces a single JSON line with `timestamp`,
 `level`, `message`, `event_type`, and any keyword arguments merged in.
 The output validates against the [`log-v1.0.0.json`](https://github.com/Neosofia/schemas/blob/main/log-v1.0.0.json)
