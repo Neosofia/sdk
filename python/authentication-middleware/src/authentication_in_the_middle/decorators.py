@@ -41,7 +41,7 @@ def with_authentication(
             if not resolved_issuer or not resolved_audience:
                 return make_response(jsonify({"error": "server_error", "detail": f"Missing config. issuer={resolved_issuer}, audience={resolved_audience}"}), 500)
 
-            jwks_client = pyjwt.PyJWKClient(resolved_jwks_uri) if resolved_jwks_uri else None
+            jwks_client = pyjwt.PyJWKClient(resolved_jwks_uri) if resolved_jwks_uri and not resolved_public_key else None
             
             auth_header = request.headers.get("Authorization", "")
             if not auth_header.startswith("Bearer "):
