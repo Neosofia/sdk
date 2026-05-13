@@ -60,6 +60,7 @@ def with_security(
     resource_loader: Callable[[str], dict[str, Any]] | None = None,
     id_arg: str | None = None,
     rate_limit: str = "60 per minute",
+    require_role: bool = True,
 ) -> Callable:
     """
     Unified security decorator for Neosofia API services.
@@ -127,7 +128,7 @@ def with_security(
         )
         
         # Uses lazy config lookup so no args required here
-        authn_decorator = with_authentication()
+        authn_decorator = with_authentication(require_role=require_role)
 
         @wraps(f)
         def wrapper(*args: Any, **kwargs: Any) -> Any:

@@ -14,7 +14,8 @@ def with_authentication(
     audience: str | None = None,
     algorithms: list[str] | None = None,
     jwks_uri: str | None = None,
-    enforce_active_role: bool = True
+    enforce_active_role: bool = True,
+    require_role: bool = False,
 ) -> Callable:
     """
     Decorator that validates a Bearer JWT using the provided public key or JWKS URI, issuer, and audience.
@@ -83,6 +84,10 @@ def with_authentication(
                         active_roles = auth_roles
                         
                     claims["neosofia:roles"] = active_roles
+
+                if require_role:
+                    if not claims.get("neosofia:roles"):
+                        return make_response(jsonify({"error": "forbidden", "detail": "Token must have at least one role"}), 403)
 
                 g.jwt_claims = claims
             except pyjwt.ExpiredSignatureError:
