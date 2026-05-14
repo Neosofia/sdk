@@ -66,28 +66,36 @@ def with_authentication(
                     options={"require": ["exp", "iat", "iss", "sub", "aud"]}
                 )
                 
-                if enforce_active_role:
-                    auth_roles = claims.get("neosofia:roles", claims.get("roles", []))
-                    if not isinstance(auth_roles, list):
-                        auth_roles = []
-                        
-                    requested_role = request.headers.get("X-Active-Role")
-                    if requested_role:
-                        if not SLUG_PATTERN.match(requested_role):
-                            return make_response(jsonify({"error": "bad_request", "detail": "Invalid role format"}), 400)
-                        if requested_role not in auth_roles:
-                            return make_response(jsonify({"error": "forbidden", "detail": "Active role not authorized for this session"}), 403)
-                        active_roles = [requested_role]
-                    else:
-                        if len(auth_roles) > 1:
-                            return make_response(jsonify({"error": "bad_request", "detail": "Multiple roles present but X-Active-Role header is missing"}), 400)
-                        active_roles = auth_roles
-                        
-                    claims["neosofia:roles"] = active_roles
+                auth_roles = claims.get("neosofia:roles", claims.get("roles", []))
+                if not isinstance(auth_roles, list):
+                    auth_roles = []
 
-                if require_role:
-                    if not claims.get("neosofia:roles"):
-                        return make_response(jsonify({"error": "forbidden", "detail": "Token must have at least one role"}), 403)
+                token_type = claims.get("neosofia:token_type") or claims.get("token_type")
+                if token_type == "service":
+                    # Service tokens are service-to-service credentials and should
+                    # not carry any user role information. Strip role claims
+                    # entirely for downstream handlers.
+                    claims.pop("neosofia:roles", None)
+                    claims.pop("roles", None)
+                else:
+                    if enforce_active_role:
+                        requested_role = request.headers.get("X-Active-Role")
+                        if requested_role:
+                            if not SLUG_PATTERN.match(requested_role):
+                                return make_response(jsonify({"error": "bad_request", "detail": "Invalid role format"}), 400)
+                            if requested_role not in auth_roles:
+                                return make_response(jsonify({"error": "forbidden", "detail": "Active role not authorized for this session"}), 403)
+                            active_roles = [requested_role]
+                        else:
+                            if len(auth_roles) > 1:
+                                return make_response(jsonify({"error": "bad_request", "detail": "Multiple roles present but X-Active-Role header is missing"}), 400)
+                            active_roles = auth_roles
+
+                        claims["neosofia:roles"] = active_roles
+
+                    if require_role:
+                        if not claims.get("neosofia:roles"):
+                            return make_response(jsonify({"error": "forbidden", "detail": "Token must have at least one role"}), 403)
 
                 g.jwt_claims = claims
             except pyjwt.ExpiredSignatureError:
