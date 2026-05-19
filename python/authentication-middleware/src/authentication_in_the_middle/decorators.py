@@ -35,7 +35,7 @@ def with_authentication(
             
             resolved_audience = audience
             if resolved_audience is None:
-                resolved_audience = current_app.config.get("SERVICE_NAME")
+                resolved_audience = current_app.config.get("JWT_AUDIENCE")
             
             resolved_jwks_uri = jwks_uri or current_app.config.get("JWT_JWKS_URI")
             
