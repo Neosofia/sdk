@@ -21,7 +21,7 @@ wheels = [
 
 [[package]]
 name = "authentication-in-the-middle"
-version = "0.6.0"
+version = "0.8.0"
 source = { editable = "python/authentication-middleware" }
 dependencies = [
     { name = "cryptography" },
