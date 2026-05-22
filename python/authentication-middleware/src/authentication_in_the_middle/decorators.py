@@ -10,7 +10,6 @@ SLUG_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
 
 def with_authentication(
     public_key: str | None = None,
-    issuer: str | None = None,
     audience: str | None = None,
     algorithms: list[str] | None = None,
     jwks_uri: str | None = None,
@@ -18,7 +17,7 @@ def with_authentication(
     require_role: bool = False,
 ) -> Callable:
     """
-    Decorator that validates a Bearer JWT using the provided public key or JWKS URI, issuer, and audience.
+    Decorator that validates a Bearer JWT using the provided public key or JWKS URI and audience.
     Stores the decoded JWT claims in flask.g.jwt_claims.
     If args are not provided, it falls back to current_app.config (e.g. JWT_PUBLIC_KEY)
     """
@@ -31,16 +30,15 @@ def with_authentication(
             
             # Resolve config at request time if not explicitly provided
             resolved_public_key = public_key or current_app.config.get("JWT_PUBLIC_KEY")
-            resolved_issuer = issuer or current_app.config.get("JWT_ISSUER")
-            
+
             resolved_audience = audience
             if resolved_audience is None:
                 resolved_audience = current_app.config.get("JWT_AUDIENCE")
-            
+
             resolved_jwks_uri = jwks_uri or current_app.config.get("JWT_JWKS_URI")
-            
-            if not resolved_issuer or not resolved_audience:
-                return make_response(jsonify({"error": "server_error", "detail": f"Missing config. issuer={resolved_issuer}, audience={resolved_audience}"}), 500)
+
+            if not resolved_audience:
+                return make_response(jsonify({"error": "server_error", "detail": "Missing config: JWT_AUDIENCE"}), 500)
 
             jwks_client = pyjwt.PyJWKClient(resolved_jwks_uri) if resolved_jwks_uri and not resolved_public_key else None
             
@@ -61,9 +59,8 @@ def with_authentication(
                     token,
                     key=signing_key,
                     algorithms=algorithms,
-                    issuer=resolved_issuer,
                     audience=resolved_audience,
-                    options={"require": ["exp", "iat", "iss", "sub", "aud"]}
+                    options={"require": ["exp", "iat", "sub", "aud"]}
                 )
                 
                 auth_roles = claims.get("neosofia:roles", claims.get("roles", []))
