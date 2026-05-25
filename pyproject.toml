@@ -4,8 +4,20 @@ version = "0.0.0"
 description = "Neosofia platform SDK — polyglot collection of shared packages. This top-level project exists only to declare the uv workspace; nothing is published from this root."
 requires-python = ">=3.12"
 
+[dependency-groups]
+dev = [
+    "logenvelope",
+    "authentication-in-the-middle",
+    "authorization-in-the-middle",
+]
+
 [tool.uv.workspace]
 members = ["python/*"]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+logenvelope = { workspace = true }
+authentication-in-the-middle = { workspace = true }
+authorization-in-the-middle = { workspace = true }

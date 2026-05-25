@@ -476,6 +476,22 @@ name = "neosofia-sdk"
 version = "0.0.0"
 source = { virtual = "." }
 
+[package.dev-dependencies]
+dev = [
+    { name = "authentication-in-the-middle" },
+    { name = "authorization-in-the-middle" },
+    { name = "logenvelope" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "authentication-in-the-middle", editable = "python/authentication-middleware" },
+    { name = "authorization-in-the-middle", editable = "python/authorization-middleware" },
+    { name = "logenvelope", editable = "python/logenvelope" },
+]
+
 [[package]]
 name = "packaging"
 version = "26.2"
