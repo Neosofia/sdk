@@ -1,6 +1,6 @@
 [project]
 name = "authentication-in-the-middle"
-version = "0.9.0"
+version = "0.9.1"
 description = "Authentication middleware for Neosofia platform services."
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -31,4 +31,14 @@ packages = ["src/authentication_in_the_middle"]
 force-exclude = ["**/dev_jwt.py"]
 
 [dependency-groups]
-dev = []
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=5.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=authentication_in_the_middle --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = ["**/dev_jwt.py"]

@@ -4,7 +4,8 @@ from typing import Any, Callable
 import jwt as pyjwt
 from flask import g, jsonify, make_response, request, current_app
 import re
-import os
+
+from authentication_in_the_middle.jwks import get_jwks_client
 
 SLUG_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
 
@@ -40,7 +41,11 @@ def with_authentication(
             if not resolved_audience:
                 return make_response(jsonify({"error": "server_error", "detail": "Missing config: JWT_AUDIENCE"}), 500)
 
-            jwks_client = pyjwt.PyJWKClient(resolved_jwks_uri) if resolved_jwks_uri and not resolved_public_key else None
+            jwks_client = (
+                get_jwks_client(resolved_jwks_uri)
+                if resolved_jwks_uri and not resolved_public_key
+                else None
+            )
             
             auth_header = request.headers.get("Authorization", "")
             if not auth_header.startswith("Bearer "):
