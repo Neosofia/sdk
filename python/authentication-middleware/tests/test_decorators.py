@@ -23,7 +23,7 @@ def test_with_authentication_reuses_cached_jwks_client():
 
     with (
         patch("authentication_in_the_middle.decorators.get_jwks_client", return_value=mock_client) as get_client,
-        patch("authentication_in_the_middle.decorators.pyjwt.decode", return_value={"sub": "user-1", "aud": "capabilities", "exp": 9999999999, "iat": 1, "neosofia:roles": ["admin"]}),
+        patch("authentication_in_the_middle.decorators.pyjwt.decode", return_value={"sub": "user-1", "aud": "capabilities", "exp": 9999999999, "iat": 1, "neosofia:roles": ["operator"]}),
     ):
         with app.test_client() as client:
             headers = {"Authorization": f"Bearer {token}"}
@@ -129,7 +129,7 @@ def test_with_authentication_accepts_static_public_key():
 
     with patch(
         "authentication_in_the_middle.decorators.pyjwt.decode",
-        return_value={"sub": "user-1", "aud": "capabilities", "exp": 9999999999, "iat": 1, "neosofia:roles": ["admin"]},
+        return_value={"sub": "user-1", "aud": "capabilities", "exp": 9999999999, "iat": 1, "neosofia:roles": ["operator"]},
     ):
         with app.test_client() as client:
             response = client.get("/protected", headers={"Authorization": "Bearer token"})
