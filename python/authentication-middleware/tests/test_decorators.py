@@ -135,3 +135,43 @@ def test_with_authentication_accepts_static_public_key():
             response = client.get("/protected", headers={"Authorization": "Bearer token"})
 
     assert response.status_code == 200
+
+
+def test_with_authentication_uses_jwt_claim_namespace_from_config():
+    app = Flask(__name__)
+    app.config["JWT_PUBLIC_KEY"] = "public-key"
+    app.config["JWT_AUDIENCE"] = "capabilities"
+    app.config["JWT_CLAIM_NAMESPACE"] = "acme"
+
+    captured: dict = {}
+
+    @app.get("/protected")
+    @with_authentication()
+    def protected():
+        from flask import g
+
+        captured["claims"] = dict(g.jwt_claims)
+        return jsonify({"ok": True})
+
+    with patch(
+        "authentication_in_the_middle.decorators.pyjwt.decode",
+        return_value={
+            "sub": "user-1",
+            "aud": "capabilities",
+            "exp": 9999999999,
+            "iat": 1,
+            "acme:roles": ["operator", "clinician"],
+        },
+    ):
+        with app.test_client() as client:
+            response = client.get(
+                "/protected",
+                headers={
+                    "Authorization": "Bearer token",
+                    "X-Active-Role": "operator",
+                },
+            )
+
+    assert response.status_code == 200
+    assert captured["claims"]["acme:roles"] == ["operator"]
+    assert captured["claims"]["acme:session_roles"] == ["operator", "clinician"]

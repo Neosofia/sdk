@@ -8,6 +8,17 @@ import re
 from authentication_in_the_middle.jwks import get_jwks_client
 
 SLUG_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
+_DEFAULT_CLAIM_NAMESPACE = "neosofia"
+
+
+def _jwt_claim_namespace() -> str:
+    ns = current_app.config.get("JWT_CLAIM_NAMESPACE", _DEFAULT_CLAIM_NAMESPACE)
+    return str(ns).strip() or _DEFAULT_CLAIM_NAMESPACE
+
+
+def _claim_key(name: str, namespace: str | None = None) -> str:
+    return f"{namespace or _jwt_claim_namespace()}:{name}"
+
 
 def with_authentication(
     public_key: str | None = None,
@@ -20,7 +31,7 @@ def with_authentication(
     """
     Decorator that validates a Bearer JWT using the provided public key or JWKS URI and audience.
     Stores the decoded JWT claims in flask.g.jwt_claims.
-    If args are not provided, it falls back to current_app.config (e.g. JWT_PUBLIC_KEY)
+    If args are not provided, it falls back to current_app.config (e.g. JWT_PUBLIC_KEY, JWT_CLAIM_NAMESPACE)
     """
     if algorithms is None:
         algorithms = ["RS256"]
@@ -67,19 +78,28 @@ def with_authentication(
                     audience=resolved_audience,
                     options={"require": ["exp", "iat", "sub", "aud"]}
                 )
-                
-                auth_roles = claims.get("neosofia:roles", claims.get("roles", []))
+
+                ns = _jwt_claim_namespace()
+                roles_key = _claim_key("roles", ns)
+                session_roles_key = _claim_key("session_roles", ns)
+                token_type_key = _claim_key("token_type", ns)
+
+                auth_roles = claims.get(roles_key, claims.get("roles", []))
                 if not isinstance(auth_roles, list):
                     auth_roles = []
 
-                token_type = claims.get("neosofia:token_type") or claims.get("token_type")
+                token_type = claims.get(token_type_key) or claims.get("token_type")
                 if token_type == "service":
                     # Service tokens are service-to-service credentials and should
                     # not carry any user role information. Strip role claims
                     # entirely for downstream handlers.
-                    claims.pop("neosofia:roles", None)
+                    claims.pop(roles_key, None)
+                    claims.pop(session_roles_key, None)
                     claims.pop("roles", None)
                 else:
+                    if auth_roles:
+                        # Full JWT role list for assignment / catalog scoping (UI may switch active role).
+                        claims[session_roles_key] = list(auth_roles)
                     if enforce_active_role:
                         requested_role = request.headers.get("X-Active-Role")
                         if requested_role:
@@ -93,10 +113,10 @@ def with_authentication(
                                 return make_response(jsonify({"error": "bad_request", "detail": "Multiple roles present but X-Active-Role header is missing"}), 400)
                             active_roles = auth_roles
 
-                        claims["neosofia:roles"] = active_roles
+                        claims[roles_key] = active_roles
 
                     if require_role:
-                        if not claims.get("neosofia:roles"):
+                        if not claims.get(roles_key):
                             return make_response(jsonify({"error": "forbidden", "detail": "Token must have at least one role"}), 403)
 
                 g.jwt_claims = claims
