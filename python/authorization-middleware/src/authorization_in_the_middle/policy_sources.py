@@ -27,33 +27,35 @@ def _load_policy_files(policies_dir: Path) -> list[dict[str, str]]:
     ]
 
 
-def _compute_version(schema_content: str, policies: list[dict[str, str]]) -> str:
+def _compute_version(policies: list[dict[str, str]]) -> str:
     digest = hashlib.sha256()
-    digest.update(schema_content.encode())
     for policy in policies:
         digest.update(policy["name"].encode())
         digest.update(policy["content"].encode())
     return f"sha256:{digest.hexdigest()[:16]}"
 
 
+def _policy_mtimes(policies_dir: Path, policies: list[dict[str, str]]) -> list[float]:
+    return [
+        (policies_dir / f"{policy['name']}.cedar").stat().st_mtime
+        for policy in policies
+    ]
+
+
 def _build_policy_set(policies_dir: Path) -> PolicySetDict:
-    schema_path = policies_dir / "schema.cedar.json"
-    schema_content = schema_path.read_text(encoding="utf-8")
     policies = _load_policy_files(policies_dir)
+    if not policies:
+        raise FileNotFoundError(
+            f"No Cedar policy files (*.cedar) found in {policies_dir}. "
+            "Service policy bundles must include at least one .cedar file."
+        )
     updated_at = datetime.fromtimestamp(
-        max(
-            schema_path.stat().st_mtime,
-            *(
-                (policies_dir / f"{policy['name']}.cedar").stat().st_mtime
-                for policy in policies
-            ),
-        ),
+        max(_policy_mtimes(policies_dir, policies)),
         tz=timezone.utc,
     ).isoformat()
     return {
-        "version": _compute_version(schema_content, policies),
+        "version": _compute_version(policies),
         "updated_at": updated_at,
-        "schema_content": schema_content,
         "policies": policies,
         "policies_text": "\n\n".join(p["content"] for p in policies),
     }
