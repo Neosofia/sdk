@@ -36,7 +36,7 @@ def extract_jwt_principal_entity(namespace: Optional[str] = None, default_type: 
     Must be used in conjunction with the authentication-in-the-middle @with_authentication decorator.
 
     Maps ``neosofia:actors`` → ``actors`` (Tier-1, narrowed by ``X-Active-Actor``) and
-    ``neosofia:roles`` → ``roles`` (Tier-2 org roles within ``tenant_type``).
+    ``neosofia:roles`` → ``roles`` (Tier-2 short names within ``tenant_type``).
     """
     claims = getattr(g, "jwt_claims", None)
     if not claims:
