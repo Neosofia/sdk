@@ -23,7 +23,16 @@ def test_with_authentication_reuses_cached_jwks_client():
 
     with (
         patch("authentication_in_the_middle.decorators.get_jwks_client", return_value=mock_client) as get_client,
-        patch("authentication_in_the_middle.decorators.pyjwt.decode", return_value={"sub": "user-1", "aud": "capabilities", "exp": 9999999999, "iat": 1, "neosofia:roles": ["operator"]}),
+        patch(
+            "authentication_in_the_middle.decorators.pyjwt.decode",
+            return_value={
+                "sub": "user-1",
+                "aud": "capabilities",
+                "exp": 9999999999,
+                "iat": 1,
+                "neosofia:actors": ["operator"],
+            },
+        ),
     ):
         with app.test_client() as client:
             headers = {"Authorization": f"Bearer {token}"}
@@ -129,7 +138,13 @@ def test_with_authentication_accepts_static_public_key():
 
     with patch(
         "authentication_in_the_middle.decorators.pyjwt.decode",
-        return_value={"sub": "user-1", "aud": "capabilities", "exp": 9999999999, "iat": 1, "neosofia:roles": ["operator"]},
+        return_value={
+            "sub": "user-1",
+            "aud": "capabilities",
+            "exp": 9999999999,
+            "iat": 1,
+            "neosofia:actors": ["operator"],
+        },
     ):
         with app.test_client() as client:
             response = client.get("/protected", headers={"Authorization": "Bearer token"})
@@ -160,7 +175,7 @@ def test_with_authentication_uses_jwt_claim_namespace_from_config():
             "aud": "capabilities",
             "exp": 9999999999,
             "iat": 1,
-            "acme:roles": ["operator", "clinician"],
+            "acme:actors": ["operator", "clinician"],
         },
     ):
         with app.test_client() as client:
@@ -168,10 +183,55 @@ def test_with_authentication_uses_jwt_claim_namespace_from_config():
                 "/protected",
                 headers={
                     "Authorization": "Bearer token",
-                    "X-Active-Role": "operator",
+                    "X-Active-Actor": "operator",
                 },
             )
 
     assert response.status_code == 200
-    assert captured["claims"]["acme:roles"] == ["operator"]
-    assert captured["claims"]["acme:session_roles"] == ["operator", "clinician"]
+    assert captured["claims"]["acme:actors"] == ["operator"]
+    assert captured["claims"]["acme:session_actors"] == ["operator", "clinician"]
+
+
+def test_with_authentication_preserves_explicit_session_actors_claim():
+    app = Flask(__name__)
+    app.config["JWT_PUBLIC_KEY"] = "public-key"
+    app.config["JWT_AUDIENCE"] = "capabilities"
+    app.config["JWT_CLAIM_NAMESPACE"] = "acme"
+
+    captured: dict = {}
+
+    @app.get("/protected")
+    @with_authentication()
+    def protected():
+        from flask import g
+
+        captured["claims"] = dict(g.jwt_claims)
+        return jsonify({"ok": True})
+
+    with patch(
+        "authentication_in_the_middle.decorators.pyjwt.decode",
+        return_value={
+            "sub": "user-1",
+            "aud": "capabilities",
+            "exp": 9999999999,
+            "iat": 1,
+            "acme:actors": ["operator"],
+            "acme:session_actors": ["operator", "clinician", "patient"],
+        },
+    ):
+        with app.test_client() as client:
+            response = client.get(
+                "/protected",
+                headers={
+                    "Authorization": "Bearer token",
+                    "X-Active-Actor": "operator",
+                },
+            )
+
+    assert response.status_code == 200
+    assert captured["claims"]["acme:actors"] == ["operator"]
+    assert captured["claims"]["acme:session_actors"] == [
+        "operator",
+        "clinician",
+        "patient",
+    ]

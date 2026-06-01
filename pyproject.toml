@@ -12,7 +12,11 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["python/*"]
+members = [
+    "python/authentication-middleware",
+    "python/authorization-middleware",
+    "python/logenvelope",
+]
 
 [tool.uv]
 package = false

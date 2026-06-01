@@ -5,9 +5,12 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/authorization_in_the_middle"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [".venv", ".venv-test", "tests"]
+
 [project]
 name = "authorization-in-the-middle"
-version = "0.4.4"
+version = "0.4.6"
 description = "Authorization middleware for Neosofia platform services."
 readme = "README.md"
 license = { text = "Apache-2.0" }

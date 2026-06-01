@@ -9,6 +9,8 @@ from authentication_in_the_middle.jwks import get_jwks_client
 
 SLUG_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
 _DEFAULT_CLAIM_NAMESPACE = "neosofia"
+# Tier-1 actor classes (JWT ``{ns}:actors``).
+TIER1_ACTOR_CLASSES = frozenset({"operator", "clinician", "patient"})
 
 
 def _jwt_claim_namespace() -> str:
@@ -25,14 +27,26 @@ def with_authentication(
     audience: str | None = None,
     algorithms: list[str] | None = None,
     jwks_uri: str | None = None,
-    enforce_active_role: bool = True,
-    require_role: bool = False,
+    enforce_active_actor: bool = True,
+    require_actor: bool = False,
+    enforce_active_role: bool | None = None,
+    require_role: bool | None = None,
 ) -> Callable:
     """
     Decorator that validates a Bearer JWT using the provided public key or JWKS URI and audience.
     Stores the decoded JWT claims in flask.g.jwt_claims.
+
+    Tier-1 (actors): ``{ns}:actors`` on the JWT; narrowed per request via ``X-Active-Actor``.
+    Full session actor list is copied to ``{ns}:session_actors`` when narrowing applies.
+    Tier-2 (roles): ``{ns}:roles`` is left untouched (registry roles within tenant_type).
+
     If args are not provided, it falls back to current_app.config (e.g. JWT_PUBLIC_KEY, JWT_CLAIM_NAMESPACE)
     """
+    if enforce_active_role is not None:
+        enforce_active_actor = enforce_active_role
+    if require_role is not None:
+        require_actor = require_role
+
     if algorithms is None:
         algorithms = ["RS256"]
 
@@ -80,44 +94,60 @@ def with_authentication(
                 )
 
                 ns = _jwt_claim_namespace()
+                actors_key = _claim_key("actors", ns)
+                session_actors_key = _claim_key("session_actors", ns)
                 roles_key = _claim_key("roles", ns)
-                session_roles_key = _claim_key("session_roles", ns)
                 token_type_key = _claim_key("token_type", ns)
 
-                auth_roles = claims.get(roles_key, claims.get("roles", []))
-                if not isinstance(auth_roles, list):
-                    auth_roles = []
+                auth_actors = claims.get(actors_key, [])
+                if not isinstance(auth_actors, list):
+                    auth_actors = []
 
                 token_type = claims.get(token_type_key) or claims.get("token_type")
                 if token_type == "service":
-                    # Service tokens are service-to-service credentials and should
-                    # not carry any user role information. Strip role claims
-                    # entirely for downstream handlers.
+                    claims.pop(actors_key, None)
+                    claims.pop(session_actors_key, None)
                     claims.pop(roles_key, None)
-                    claims.pop(session_roles_key, None)
-                    claims.pop("roles", None)
                 else:
-                    if auth_roles:
-                        # Full JWT role list for assignment / catalog scoping (UI may switch active role).
-                        claims[session_roles_key] = list(auth_roles)
-                    if enforce_active_role:
-                        requested_role = request.headers.get("X-Active-Role")
-                        if requested_role:
-                            if not SLUG_PATTERN.match(requested_role):
-                                return make_response(jsonify({"error": "bad_request", "detail": "Invalid role format"}), 400)
-                            if requested_role not in auth_roles:
-                                return make_response(jsonify({"error": "forbidden", "detail": "Active role not authorized for this session"}), 403)
-                            active_roles = [requested_role]
+                    existing_session = claims.get(session_actors_key, [])
+                    if not isinstance(existing_session, list):
+                        existing_session = []
+                    session_actors: list[str] = []
+                    seen_session: set[str] = set()
+                    for actor in [*existing_session, *auth_actors]:
+                        if (
+                            isinstance(actor, str)
+                            and actor in TIER1_ACTOR_CLASSES
+                            and actor not in seen_session
+                        ):
+                            seen_session.add(actor)
+                            session_actors.append(actor)
+                    if session_actors:
+                        claims[session_actors_key] = session_actors
+                    actor_eligibility = session_actors if session_actors else auth_actors
+                    if enforce_active_actor:
+                        requested_actor = request.headers.get("X-Active-Actor") or request.headers.get(
+                            "X-Active-Role"
+                        )
+                        if requested_actor:
+                            if not SLUG_PATTERN.match(requested_actor):
+                                return make_response(jsonify({"error": "bad_request", "detail": "Invalid actor format"}), 400)
+                            if requested_actor not in actor_eligibility:
+                                return make_response(jsonify({"error": "forbidden", "detail": "Active actor not authorized for this session"}), 403)
+                            active_actors = [requested_actor]
                         else:
-                            if len(auth_roles) > 1:
-                                return make_response(jsonify({"error": "bad_request", "detail": "Multiple roles present but X-Active-Role header is missing"}), 400)
-                            active_roles = auth_roles
+                            if len(auth_actors) > 1:
+                                return make_response(jsonify({
+                                    "error": "bad_request",
+                                    "detail": "Multiple actors present but X-Active-Actor header is missing",
+                                }), 400)
+                            active_actors = auth_actors
 
-                        claims[roles_key] = active_roles
+                        claims[actors_key] = active_actors
 
-                    if require_role:
-                        if not claims.get(roles_key):
-                            return make_response(jsonify({"error": "forbidden", "detail": "Token must have at least one role"}), 403)
+                    if require_actor:
+                        if not claims.get(actors_key):
+                            return make_response(jsonify({"error": "forbidden", "detail": "Token must have at least one actor"}), 403)
 
                 g.jwt_claims = claims
             except pyjwt.ExpiredSignatureError:

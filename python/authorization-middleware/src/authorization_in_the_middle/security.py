@@ -207,7 +207,8 @@ def with_security(
     resource_loader: Callable[[str], dict[str, Any]] | None = None,
     id_arg: str | None = None,
     rate_limit: str = "60 per minute",
-    enforce_active_role: bool = True,
+    enforce_active_actor: bool = True,
+    enforce_active_role: bool | None = None,
     resource_type: str | None = None,
     catalog_id: str | None = None,
     entity_module: str | None = None,
@@ -230,6 +231,9 @@ def with_security(
     - ``resolve_principal()`` (or ``load_principal_entity()``) for the Cedar principal
     - ``build_{model}_resource_entity``, ``build_{catalog}_entity`` when using REST inference
     """
+    if enforce_active_role is not None:
+        enforce_active_actor = enforce_active_role
+
     def decorator(f: Callable) -> Callable:
         resource_fn_local = resource_fn
         entities_fn_local = entities_fn
@@ -314,7 +318,7 @@ def with_security(
             log_event=default_log_event,
         )
 
-        authn_decorator = with_authentication(enforce_active_role=enforce_active_role)
+        authn_decorator = with_authentication(enforce_active_actor=enforce_active_actor)
 
         @wraps(f)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
