@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to build and release"
+        description: "Tag to build and release (e.g. authentication-in-the-middle/v0.9.4)"
         required: true
 
 jobs:
@@ -18,9 +18,75 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Resolve checkout ref
+        id: checkout_ref
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "ref=refs/tags/${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v5
         with:
+          ref: ${{ steps.checkout_ref.outputs.ref }}
           fetch-depth: 0
+
+      - name: Determine package from tag
+        id: package
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+
+          echo "Using tag: $TAG"
+
+          if [[ "$TAG" == logenvelope/v* ]]; then
+            echo "name=logenvelope" >> "$GITHUB_OUTPUT"
+            echo "path=python/logenvelope" >> "$GITHUB_OUTPUT"
+            echo "pyproject_path=python/logenvelope/pyproject.toml" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == authentication-in-the-middle/v* ]]; then
+            echo "name=authentication-in-the-middle" >> "$GITHUB_OUTPUT"
+            echo "path=python/authentication-middleware" >> "$GITHUB_OUTPUT"
+            echo "pyproject_path=python/authentication-middleware/pyproject.toml" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == authorization-in-the-middle/v* ]]; then
+            echo "name=authorization-in-the-middle" >> "$GITHUB_OUTPUT"
+            echo "path=python/authorization-middleware" >> "$GITHUB_OUTPUT"
+            echo "pyproject_path=python/authorization-middleware/pyproject.toml" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported tag format: $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tag matches package version
+        run: |
+          TAG="${{ steps.package.outputs.tag }}"
+          PYPROJECT_PATH="${{ steps.package.outputs.pyproject_path }}"
+
+          TAG_VERSION="${TAG##*/v}"
+          TAG_VERSION="${TAG_VERSION#v}"
+
+          PYPROJECT_VERSION="$(python3 -c "
+          import tomllib, sys
+          with open(sys.argv[1], 'rb') as f:
+              print(tomllib.load(f)['project']['version'])
+          " "$PYPROJECT_PATH")"
+
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          echo "Tag version: $TAG_VERSION"
+          echo "Package version in $PYPROJECT_PATH: $PYPROJECT_VERSION"
+
+          if [[ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package version ($PYPROJECT_VERSION) at this commit."
+            echo "Bump version in pyproject.toml, commit and push to main, then create the tag on that commit:"
+            echo "  git tag ${TAG} && git push origin refs/tags/${TAG}"
+            exit 1
+          fi
+
+          echo "Version match confirmed"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -33,66 +99,18 @@ jobs:
       - name: Sync workspace
         run: uv sync --frozen
 
-      - name: Determine package from tag
-        id: package
-        run: |
-          echo "EVENT_NAME: ${GITHUB_EVENT_NAME}"
-          echo "INPUT_TAG: '${{ github.event.inputs.tag }}'"
-
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${{ github.ref_name }}"
-          fi
-
-          echo "Using tag: $TAG"
-
-          if [[ "$TAG" == logenvelope/v* ]]; then
-            echo "name=logenvelope" >> $GITHUB_OUTPUT
-            echo "path=python/logenvelope" >> $GITHUB_OUTPUT
-            echo "pyproject_path=python/logenvelope/pyproject.toml" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" == authentication-in-the-middle/v* ]]; then
-            echo "name=authentication-in-the-middle" >> $GITHUB_OUTPUT
-            echo "path=python/authentication-middleware" >> $GITHUB_OUTPUT
-            echo "pyproject_path=python/authentication-middleware/pyproject.toml" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" == authorization-in-the-middle/v* ]]; then
-            echo "name=authorization-in-the-middle" >> $GITHUB_OUTPUT
-            echo "path=python/authorization-middleware" >> $GITHUB_OUTPUT
-            echo "pyproject_path=python/authorization-middleware/pyproject.toml" >> $GITHUB_OUTPUT
-          else
-            echo "Unsupported tag format: $TAG"
-            exit 1
-          fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
-      - name: Validate tag matches package version
-        run: |
-          TAG="${{ steps.package.outputs.tag }}"
-          PYPROJECT_PATH=${{ steps.package.outputs.pyproject_path }}
-
-          TAG_VERSION="${TAG##*/v}"
-          TAG_VERSION="${TAG_VERSION#v}"
-
-          PYPROJECT_VERSION=$(grep '^version = ' "$PYPROJECT_PATH" | sed 's/version = "\(.*\)"/\1/')
-
-          echo "Tag version: $TAG_VERSION"
-          echo "Package version: $PYPROJECT_VERSION"
-
-          if [[ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]]; then
-            echo "❌ Error: Tag version ($TAG_VERSION) does not match package version ($PYPROJECT_VERSION)"
-            exit 1
-          fi
-
-          echo "✓ Version match confirmed"
-
       - name: Build distribution
         run: uv build ${{ steps.package.outputs.path }}
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_TAG="${{ steps.package.outputs.tag }}"
-          gh release create "$RELEASE_TAG" dist/* \
-            --title "$RELEASE_TAG" \
-            --notes "Release $RELEASE_TAG"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --title "$RELEASE_TAG" \
+              --notes "Release $RELEASE_TAG (CI-built)"
+          fi
