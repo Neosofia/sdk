@@ -42,6 +42,10 @@ Wheels and GitHub Release assets are **CI-only** (`.github/workflows/publish.yml
 
 Supported tag prefixes: `logenvelope/v*`, `authentication-in-the-middle/v*`, `authorization-in-the-middle/v*`.
 
+**Do not** upload `dist/*`, run `gh release create` locally, or run `gh release edit` from a laptop. If a release is missing assets or stuck in draft after a tag move, re-run the **publish** workflow via Actions → **workflow_dispatch** with the same tag name (CI rebuilds wheels and publishes the release).
+
+**Do not** delete and re-push release tags to fix signing or CI unless you intend to re-release; moving tags orphans draft releases and breaks consumers until publish runs again.
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

@@ -5,6 +5,7 @@ import jwt as pyjwt
 from flask import current_app, g, jsonify, make_response, request
 import re
 
+from authentication_in_the_middle.actors import ensure_tier1_actor_classes
 from authentication_in_the_middle.jwks import get_jwks_client
 
 SLUG_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -12,13 +13,8 @@ _DEFAULT_CLAIM_NAMESPACE = "neosofia"
 
 
 def _tier1_actor_classes() -> frozenset[str]:
-    """Tier-1 allow-list set at app startup (see ``TIER1_ACTOR_CLASSES`` in Flask config)."""
-    configured = current_app.config.get("TIER1_ACTOR_CLASSES")
-    if isinstance(configured, frozenset):
-        return configured
-    if isinstance(configured, (set, list, tuple)):
-        return frozenset(configured)
-    return frozenset()
+    """Tier-1 allow-list from Flask config or Authentication platform-actors.json."""
+    return ensure_tier1_actor_classes(current_app)
 
 
 def _jwt_claim_namespace() -> str:
@@ -46,8 +42,9 @@ def with_authentication(
     Full session actor list is copied to ``{ns}:session_actors`` when narrowing applies.
     Tier-2 (roles): ``{ns}:roles`` is left untouched (registry roles within tenant_type).
 
-    Services must set ``TIER1_ACTOR_CLASSES`` (frozenset) in Flask config at startup, typically
-    from Pydantic ``valid_actors`` / env ``VALID_ACTORS``. Also supports ``JWT_PUBLIC_KEY``,
+    When ``JWT_JWKS_URI`` is set, call ``configure_tier1_actor_classes(app)`` at startup to
+    load ``TIER1_ACTOR_CLASSES`` from ``/.well-known/platform-actors.json``. Tests may set
+    ``TIER1_ACTOR_CLASSES`` explicitly. Also supports ``JWT_PUBLIC_KEY``,
     ``JWT_AUDIENCE``, ``JWT_JWKS_URI``, and ``JWT_CLAIM_NAMESPACE`` via ``current_app.config``.
     """
     if algorithms is None:
@@ -81,6 +78,7 @@ def with_authentication(
             token = auth_header[7:]
             try:
                 if jwks_client:
+                    ensure_tier1_actor_classes(current_app)
                     signing_key = jwks_client.get_signing_key_from_jwt(token).key
                 elif resolved_public_key:
                     signing_key = resolved_public_key

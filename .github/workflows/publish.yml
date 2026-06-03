@@ -114,3 +114,7 @@ jobs:
               --title "$RELEASE_TAG" \
               --notes "Release $RELEASE_TAG (CI-built)"
           fi
+          # Tag delete/recreate can leave a draft release; publish must be public for wheel URLs.
+          if [[ "$(gh release view "$RELEASE_TAG" --json isDraft -q .isDraft)" == "true" ]]; then
+            gh release edit "$RELEASE_TAG" --draft=false
+          fi
