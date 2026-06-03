@@ -21,7 +21,7 @@ wheels = [
 
 [[package]]
 name = "authentication-in-the-middle"
-version = "0.9.4"
+version = "0.9.5"
 source = { editable = "python/authentication-middleware" }
 dependencies = [
     { name = "cryptography" },
@@ -50,7 +50,7 @@ dev = [
 
 [[package]]
 name = "authorization-in-the-middle"
-version = "0.4.6"
+version = "0.4.7"
 source = { editable = "python/authorization-middleware" }
 dependencies = [
     { name = "cedarpy" },
