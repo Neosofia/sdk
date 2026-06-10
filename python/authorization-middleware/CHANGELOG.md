@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.23] - 2026-06-10
+
+### Fixed
+
+- Catalog type inference for hyphenated Cedar actions (e.g. `care-episode:list` → `CareEpisodeCatalog`, not `CareEpisode`). Models whose names end in `_catalog` (e.g. `role_catalog`) are unchanged.
+
+### Changed
+
+- README and decorator docs: drop stale `Capabilities.*` examples; document inline `action='Action::"…"'` and bare `@with_security()` inference.
+
 ## [0.4.22] - 2026-06-10
 
 ### Added
@@ -25,4 +35,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `rest=False` toggle and related manual catalog/member wiring for standard REST routes.
 
+[0.4.23]: https://github.com/Neosofia/sdk/releases/tag/authorization-in-the-middle/v0.4.23
 [0.4.22]: https://github.com/Neosofia/sdk/releases/tag/authorization-in-the-middle/v0.4.22

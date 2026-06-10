@@ -174,9 +174,13 @@ def _scope_resource_name(
 
 def _catalog_resource_type(model_name: str, verb: str) -> str:
     base = _pascal_case(model_name)
-    if _is_catalog_collection(verb):
-        return f"{_pascal_case(model_name.split('_')[0])}Catalog" if "_" not in model_name else base
-    return base
+    if not _is_catalog_collection(verb):
+        return base
+    if model_name.endswith("_catalog"):
+        return base
+    if "_" not in model_name:
+        return f"{_pascal_case(model_name.split('_')[0])}Catalog"
+    return f"{base}Catalog"
 
 
 def _item_resource_type(model_name: str, resource_type: str | None) -> str:

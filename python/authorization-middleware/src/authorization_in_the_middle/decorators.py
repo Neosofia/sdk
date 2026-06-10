@@ -40,7 +40,7 @@ def with_authorization(
                        the Cedar principal UID string, e.g.
                        ``lambda: request.headers["X-Principal"]``.
         action:        Cedar action UID string, fixed at decoration time, e.g.
-                   ``Capabilities.PATIENT_RECORD_READ``.
+                   ``'Action::"document:read"'``.
         resource_fn:   Zero-argument callable invoked at request time to return
                        the Cedar resource UID string, e.g.
                        ``lambda: f'cdp::PatientRecord::"{request.view_args["id"]}"'``.

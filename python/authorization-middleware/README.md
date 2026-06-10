@@ -16,7 +16,7 @@ principal  +  action  +  resource
 ```
 
 - **Principal** — who is acting. Almost always JWT **`sub`**, built in `resolve_principal()` (your service decides how: JWT claims, DB row, etc.). Not taken from the path.
-- **Action** — what they want, e.g. `Action::"user:list"`. Bound via `Capabilities.*` on the route.
+- **Action** — what they want, e.g. `Action::"user:list"`. Inferred from HTTP method + path, or passed explicitly on `@with_security`.
 - **Resource** — what they act on: one `User`, the `UserCatalog` for “list users,” a `Service`, etc.
 
 Policies only see those three UIDs plus **entity records** (attributes for principal and resource). They do not see HTTP or JWT directly.
@@ -31,7 +31,6 @@ Policies only see those three UIDs plus **entity records** (attributes for princ
 | **Entity** | [Cedar](https://docs.cedarpolicy.com/overview/terminology.html) name for a typed object with an id and **attributes** (`uid`, `attrs`, `parents`). In our code: the JSON from `build_entity_payload()`. |
 | **Member** | One record — id from the path (`user_uuid`, `slug`). |
 | **Catalog** | REST **collection** (list/create) — Cedar type `*Catalog`, fixed id (`user-catalog`). Same as “the list endpoint,” not a product catalog. |
-| **Capability** | Service constant for an action string. |
 
 `entities_fn` returns **`[principal_entity, resource_entity]`** — attribute data for who and what. The action is separate.
 
@@ -113,11 +112,20 @@ Typical platform route (REST inference — see Rosetta stone):
 
 ```python
 from authorization_in_the_middle.security import with_security
-from src.bootstrap.capabilities import Capabilities
+
+@bp.route("", methods=["GET"])
+@with_security(rate_limit="60 per minute")
+def list_users():
+    ...
 
 @bp.route("/<user_uuid>", methods=["GET"])
-@with_security(action=Capabilities.USER_READ, rate_limit="60 per minute")
+@with_security(rate_limit="60 per minute", resource_loader=get_user_or_404)
 def get_user(user_uuid: str):
+    ...
+
+@bp.route("/<slug>/rotate", methods=["POST"])
+@with_security(action='Action::"service:rotate"', id_arg="slug")
+def rotate_service(slug: str):
     ...
 ```
 
@@ -135,7 +143,7 @@ _evaluator = CedarEvaluator(
 @with_authorization(
     _evaluator,
     principal_fn=lambda: ...,
-    action=Capabilities.PATIENT_RECORD_READ,
+    action='Action::"document:read"',
     resource_fn=lambda: f'cdp::PatientRecord::"{request.view_args["patient_id"]}"',
     entities_fn=lambda: [...],
     context_fn=lambda: {"http_method": request.method},
@@ -161,9 +169,9 @@ Your Service (Python)
 `cedarpy` ships a pre-compiled Rust wheel — no sidecar, no subprocess.  Each service
 must include `cedarpy` in its Dockerfile (it is a runtime dependency of this package).
 
-Use capability constants in service code instead of encoding transport details into
-the Cedar action vocabulary. A route binds to a capability; Cedar policies then reason
-over resource facts, relationships, and request context.
+Cedar policies reason over principal, action, and resource — not HTTP details. Prefer
+bare `@with_security()` where inference matches your policy vocabulary; pass
+`action='Action::"…"'` only when the route noun or verb does not match Cedar.
 
 ## Sources and Evaluators
 
@@ -175,6 +183,6 @@ over resource facts, relationships, and request context.
 | `CedarEvaluator` | Production — in-process via cedarpy + a policy source |
 | `StubEvaluator` | Tests — configurable allow/deny via a callable |
 
-See the example service template at `templates/python/authorization` for a concrete
+See the example service template at `templates/python/service` for a concrete
 service-owned bundle layout, env-driven policy directory configuration, and
-capability-to-route bindings.
+`@with_security` route bindings.

@@ -20,6 +20,7 @@ def test_action_parts():
     assert _action_parts('Action::"user:read"') == ("user", "read")
     assert _action_parts('Action::"user:list"') == ("user", "list")
     assert _action_parts('Action::"role_catalog:read"') == ("role_catalog", "read")
+    assert _action_parts('Action::"care-episode:list"') == ("care_episode", "list")
 
 
 def test_catalog_detection():
@@ -33,6 +34,8 @@ def test_catalog_detection():
 def test_catalog_resource_types():
     assert _catalog_resource_type("user", "list") == "UserCatalog"
     assert _catalog_resource_type("role_catalog", "read") == "RoleCatalog"
+    assert _catalog_resource_type("care_episode", "list") == "CareEpisodeCatalog"
+    assert _catalog_resource_type("care_episode", "create") == "CareEpisodeCatalog"
 
 
 def test_catalog_constant_name():
@@ -43,6 +46,7 @@ def test_catalog_constant_name():
 def test_type_to_snake():
     assert _type_to_snake("UserCatalog") == "user_catalog"
     assert _type_to_snake("RoleCatalog") == "role_catalog"
+    assert _type_to_snake("CareEpisodeCatalog") == "care_episode_catalog"
 
 
 def _bind_request(app: Flask, path: str, method: str = "GET"):
