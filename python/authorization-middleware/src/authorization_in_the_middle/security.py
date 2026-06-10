@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 from authentication_in_the_middle.decorators import with_authentication
 from authorization_in_the_middle.decorators import with_authorization
+from logenvelope.flask import cedar_principal_log_fields, log_request_event
 from authorization_in_the_middle.entities import entity_uid
 from flask import current_app, request
 
@@ -193,11 +194,6 @@ def _rest_entities_for_catalog(
     ]
 
 
-def default_log_event(event_type: str, **kwargs: Any) -> None:
-    if "logenvelope" in current_app.extensions:
-        current_app.extensions["logenvelope"].log_event(event_type, **kwargs)
-
-
 def with_security(
     action: str,
     resource_fn: Callable[[], str] | None = None,
@@ -311,31 +307,28 @@ def with_security(
             resource_fn=resource_fn_local,
             entities_fn=entities_fn_local,
             context_fn=request_context,
-            log_event=default_log_event,
+            log_event=log_request_event,
         )
 
         authn_decorator = with_authentication(enforce_active_actor=enforce_active_actor)
 
         @wraps(f)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            trace_id = request.headers.get("traceparent") or request.headers.get("X-Transaction-Id")
             try:
-                p_uid = _principal_uid(entities_mod)
+                principal_entity = _resolve_principal(entities_mod)
+                principal_fields = cedar_principal_log_fields(principal_entity)
             except Exception:
-                p_uid = "unknown"
+                principal_fields = {"principal": "unknown"}
 
-            log_kwargs = {
-                "route": f.__name__,
-                "principal": p_uid,
-                "action": action,
-                "resource_name": resolved_resource_name,
-                "resource_id": catalog_id or kwargs.get(target_id_arg),
-                "rate_limit": rate_limit,
-            }
-            if trace_id:
-                log_kwargs["trace_id"] = trace_id
-
-            default_log_event("security_evaluation_started", **log_kwargs)
+            log_request_event(
+                "security_evaluation_started",
+                route=f.__name__,
+                action=action,
+                resource_name=resolved_resource_name,
+                resource_id=catalog_id or kwargs.get(target_id_arg),
+                rate_limit=rate_limit,
+                **principal_fields,
+            )
             return authz_decorator(f)(*args, **kwargs)
 
         final_handler = authn_decorator(wrapper)

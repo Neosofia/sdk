@@ -92,6 +92,16 @@ def test_log_event_produces_schema_conformant_output(captured_logger, log_schema
     assert entry["level"] == "INFO"
 
 
+def test_log_event_respects_explicit_level(captured_logger, log_schema):
+    _logger, buffer = captured_logger
+    log_event("authentication.failed", level=logging.WARNING, reason="missing_bearer")
+    entry = json.loads(buffer.getvalue().strip())
+    jsonschema.validate(entry, log_schema)
+    assert entry["event_type"] == "authentication.failed"
+    assert entry["level"] == "WARNING"
+    assert entry["reason"] == "missing_bearer"
+
+
 def test_log_event_with_only_event_type(captured_logger, log_schema):
     _logger, buffer = captured_logger
     log_event("health_check_failed")

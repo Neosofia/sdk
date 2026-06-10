@@ -1,6 +1,6 @@
 [project]
 name = "logenvelope"
-version = "0.3.0"
+version = "0.3.3"
 description = "Structured JSON logger for a web service platform. Conforms to the log envelope schema published at https://github.com/Neosofia/schemas."
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -31,6 +31,7 @@ packages = ["src/logenvelope"]
 
 [dependency-groups]
 dev = [
+    "flask>=3.0",
     "pytest>=8.0",
     "jsonschema>=4.21",
 ]

@@ -12,6 +12,7 @@ from functools import wraps
 from typing import Any, Callable
 
 from flask import jsonify, make_response
+from logenvelope.flask import log_request_event
 from werkzeug.exceptions import BadRequest, NotFound
 
 
@@ -22,7 +23,7 @@ def with_authorization(
     resource_fn: Callable[[], str],
     entities_fn: Callable[[], list[dict[str, Any]]] | None = None,
     context_fn: Callable[[], dict[str, Any]] | None = None,
-    log_event: Callable = lambda *a, **k: None,
+    log_event: Callable[..., None] = log_request_event,
 ) -> Callable:
     """
     Decorator factory that enforces Cedar authorization on a Flask route.
@@ -47,8 +48,8 @@ def with_authorization(
                        itself, e.g. cedar-agent with pre-loaded data).
         context_fn:    Optional zero-argument callable that returns Cedar
                    request context derived from the current request.
-        log_event:     Optional structured-logging callable with the same signature
-                       as logenvelope's log_event(event_type, **kwargs).
+        log_event:     Optional structured-logging callable; defaults to
+                       ``logenvelope.flask.log_request_event``.
 
     Returns:
         A decorator suitable for use with @with_authorization(...).
@@ -82,6 +83,7 @@ def with_authorization(
                     "authorization.invalid_request",
                     route=f.__name__,
                     action=action,
+                    http_status_code=400,
                     error_type=type(exc).__name__,
                 )
                 return make_response(jsonify({"error": "invalid_request"}), 400)
@@ -90,6 +92,7 @@ def with_authorization(
                     "authorization.resource_not_found",
                     route=f.__name__,
                     action=action,
+                    http_status_code=404,
                     error_type=type(exc).__name__,
                 )
                 return make_response(jsonify({"error": "not_found"}), 404)
@@ -98,6 +101,7 @@ def with_authorization(
                     "authorization.evaluation_error",
                     route=f.__name__,
                     action=action,
+                    http_status_code=503,
                     error_type=type(exc).__name__,
                 )
                 return make_response(
@@ -111,6 +115,7 @@ def with_authorization(
                     principal=principal,
                     action=action,
                     resource=resource,
+                    http_status_code=403,
                 )
                 return make_response(jsonify({"error": "forbidden"}), 403)
 
@@ -120,6 +125,7 @@ def with_authorization(
                 principal=principal,
                 action=action,
                 resource=resource,
+                http_status_code=200,
             )
             return f(*args, **kwargs)
 

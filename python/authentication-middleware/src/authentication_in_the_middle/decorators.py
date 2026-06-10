@@ -7,6 +7,7 @@ import re
 
 from authentication_in_the_middle.actors import ensure_tier1_actor_classes
 from authentication_in_the_middle.jwks import get_jwks_client
+from authentication_in_the_middle.logging import log_authentication_failed
 
 SLUG_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _DEFAULT_CLAIM_NAMESPACE = "neosofia"
@@ -53,6 +54,16 @@ def with_authentication(
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         def decorated(*args: Any, **kwargs: Any) -> Any:
+            route_name = f.__name__
+
+            def fail(response, *, reason: str, status_code: int, error_type: str | None = None):
+                log_authentication_failed(
+                    reason=reason,
+                    status_code=status_code,
+                    route=route_name,
+                    error_type=error_type,
+                )
+                return response
 
             resolved_public_key = public_key or current_app.config.get("JWT_PUBLIC_KEY")
 
@@ -63,7 +74,11 @@ def with_authentication(
             resolved_jwks_uri = jwks_uri or current_app.config.get("JWT_JWKS_URI")
 
             if not resolved_audience:
-                return make_response(jsonify({"error": "server_error", "detail": "Missing config: JWT_AUDIENCE"}), 500)
+                return fail(
+                    make_response(jsonify({"error": "server_error", "detail": "Missing config: JWT_AUDIENCE"}), 500),
+                    reason="missing_audience_config",
+                    status_code=500,
+                )
 
             jwks_client = (
                 get_jwks_client(resolved_jwks_uri)
@@ -73,7 +88,11 @@ def with_authentication(
 
             auth_header = request.headers.get("Authorization", "")
             if not auth_header.startswith("Bearer "):
-                return make_response(jsonify({"error": "unauthenticated", "detail": "Missing or invalid Bearer token"}), 401)
+                return fail(
+                    make_response(jsonify({"error": "unauthenticated", "detail": "Missing or invalid Bearer token"}), 401),
+                    reason="missing_bearer",
+                    status_code=401,
+                )
 
             token = auth_header[7:]
             try:
@@ -83,7 +102,14 @@ def with_authentication(
                 elif resolved_public_key:
                     signing_key = resolved_public_key
                 else:
-                    return make_response(jsonify({"error": "unauthenticated", "detail": "No public key or JWKS URI configured"}), 500)
+                    return fail(
+                        make_response(
+                            jsonify({"error": "unauthenticated", "detail": "No public key or JWKS URI configured"}),
+                            500,
+                        ),
+                        reason="missing_verification_key",
+                        status_code=500,
+                    )
 
                 claims = pyjwt.decode(
                     token,
@@ -130,18 +156,33 @@ def with_authentication(
                         requested_actor = request.headers.get("X-Active-Actor")
                         if requested_actor:
                             if not SLUG_PATTERN.match(requested_actor):
-                                return make_response(jsonify({"error": "bad_request", "detail": "Invalid actor format"}), 400)
+                                return fail(
+                                    make_response(jsonify({"error": "bad_request", "detail": "Invalid actor format"}), 400),
+                                    reason="invalid_actor_format",
+                                    status_code=400,
+                                )
                             if requested_actor not in actor_eligibility:
-                                return make_response(jsonify({"error": "forbidden", "detail": "Active actor not authorized for this session"}), 403)
+                                return fail(
+                                    make_response(
+                                        jsonify({"error": "forbidden", "detail": "Active actor not authorized for this session"}),
+                                        403,
+                                    ),
+                                    reason="actor_not_authorized",
+                                    status_code=403,
+                                )
                             active_actors = [requested_actor]
                         else:
                             if len(auth_actors) > 1:
-                                return make_response(
-                                    jsonify({
-                                        "error": "bad_request",
-                                        "detail": "Multiple actors present but X-Active-Actor header is missing",
-                                    }),
-                                    400,
+                                return fail(
+                                    make_response(
+                                        jsonify({
+                                            "error": "bad_request",
+                                            "detail": "Multiple actors present but X-Active-Actor header is missing",
+                                        }),
+                                        400,
+                                    ),
+                                    reason="missing_active_actor",
+                                    status_code=400,
                                 )
                             active_actors = auth_actors
 
@@ -149,15 +190,37 @@ def with_authentication(
 
                     if require_actor:
                         if not claims.get(actors_key):
-                            return make_response(jsonify({"error": "forbidden", "detail": "Token must have at least one actor"}), 403)
+                            return fail(
+                                make_response(
+                                    jsonify({"error": "forbidden", "detail": "Token must have at least one actor"}),
+                                    403,
+                                ),
+                                reason="missing_actor",
+                                status_code=403,
+                            )
 
                 g.jwt_claims = claims
             except pyjwt.ExpiredSignatureError:
-                return make_response(jsonify({"error": "unauthenticated", "detail": "Token expired"}), 401)
-            except pyjwt.PyJWKClientError as e:
-                return make_response(jsonify({"error": "unauthenticated", "detail": f"JWKS Error: {str(e)}"}), 500)
+                return fail(
+                    make_response(jsonify({"error": "unauthenticated", "detail": "Token expired"}), 401),
+                    reason="token_expired",
+                    status_code=401,
+                    error_type="ExpiredSignatureError",
+                )
+            except pyjwt.PyJWKClientError as exc:
+                return fail(
+                    make_response(jsonify({"error": "unauthenticated", "detail": f"JWKS Error: {str(exc)}"}), 500),
+                    reason="jwks_error",
+                    status_code=500,
+                    error_type="PyJWKClientError",
+                )
             except pyjwt.InvalidTokenError:
-                return make_response(jsonify({"error": "unauthenticated", "detail": "Invalid token"}), 401)
+                return fail(
+                    make_response(jsonify({"error": "unauthenticated", "detail": "Invalid token"}), 401),
+                    reason="token_invalid",
+                    status_code=401,
+                    error_type="InvalidTokenError",
+                )
 
             return f(*args, **kwargs)
 

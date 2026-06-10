@@ -1,6 +1,6 @@
 [project]
 name = "authentication-in-the-middle"
-version = "0.9.6"
+version = "0.9.8"
 description = "Authentication middleware for Neosofia platform services."
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -15,7 +15,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: System :: Networking",
 ]
-dependencies = ["flask>=3.0.0", "pyjwt>=2.8.0", "cryptography>=42.0.0"]
+dependencies = [
+    "flask>=3.0.0",
+    "logenvelope>=0.3.3",
+    "pyjwt>=2.8.0",
+    "cryptography>=42.0.0",
+]
+
+[tool.uv.sources]
+logenvelope = { workspace = true }
 
 [project.urls]
 Homepage = "https://github.com/Neosofia/sdk"

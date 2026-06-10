@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+import traceback
 from collections.abc import Mapping
 from typing import Any
 
@@ -90,6 +91,19 @@ class GunicornAccessLogFormatter(JSONFormatter):
 
 class JSONLogger(_GunicornLogger):
     """Gunicorn logger class that emits structured JSON for access and error logs."""
+
+    def access(self, resp, req, environ, request_time):  # type: ignore[override]
+        if not self.access_log_enabled:
+            return
+
+        safe_atoms = self.atoms_wrapper_class(
+            self.atoms(resp, req, environ, request_time)
+        )
+
+        try:
+            self.access_log.debug(self.cfg.access_log_format, safe_atoms)
+        except Exception:
+            self.error(traceback.format_exc())
 
     def setup(self, cfg) -> None:  # type: ignore[override]
         if _GunicornLogger is object:

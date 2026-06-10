@@ -21,11 +21,12 @@ wheels = [
 
 [[package]]
 name = "authentication-in-the-middle"
-version = "0.9.6"
+version = "0.9.8"
 source = { editable = "python/authentication-middleware" }
 dependencies = [
     { name = "cryptography" },
     { name = "flask" },
+    { name = "logenvelope" },
     { name = "pyjwt" },
 ]
 
@@ -39,6 +40,7 @@ dev = [
 requires-dist = [
     { name = "cryptography", specifier = ">=42.0.0" },
     { name = "flask", specifier = ">=3.0.0" },
+    { name = "logenvelope", editable = "python/logenvelope" },
     { name = "pyjwt", specifier = ">=2.8.0" },
 ]
 
@@ -50,15 +52,17 @@ dev = [
 
 [[package]]
 name = "authorization-in-the-middle"
-version = "0.4.7"
+version = "0.4.8"
 source = { editable = "python/authorization-middleware" }
 dependencies = [
     { name = "cedarpy" },
     { name = "flask" },
+    { name = "logenvelope" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "authentication-in-the-middle" },
     { name = "pytest" },
     { name = "pytest-cov" },
 ]
@@ -67,10 +71,12 @@ dev = [
 requires-dist = [
     { name = "cedarpy", specifier = ">=4.8.0" },
     { name = "flask", specifier = ">=3.0.0" },
+    { name = "logenvelope", editable = "python/logenvelope" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "authentication-in-the-middle", editable = "python/authentication-middleware" },
     { name = "pytest", specifier = ">=7.4.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
 ]
@@ -400,11 +406,12 @@ wheels = [
 
 [[package]]
 name = "logenvelope"
-version = "0.3.0"
+version = "0.3.3"
 source = { editable = "python/logenvelope" }
 
 [package.dev-dependencies]
 dev = [
+    { name = "flask" },
     { name = "jsonschema" },
     { name = "pytest" },
 ]
@@ -413,6 +420,7 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "flask", specifier = ">=3.0" },
     { name = "jsonschema", specifier = ">=4.21" },
     { name = "pytest", specifier = ">=8.0" },
 ]

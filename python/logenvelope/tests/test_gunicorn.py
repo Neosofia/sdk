@@ -11,7 +11,7 @@ def test_gunicorn_access_log_formatter_structures_fields():
     formatter = GunicornAccessLogFormatter(default_event_type="http.access")
     record = logging.LogRecord(
         name="gunicorn.access",
-        level=logging.INFO,
+        level=logging.DEBUG,
         pathname="/tmp/test.py",
         lineno=1,
         msg="%(h)s %(r)s %(s)s",
@@ -38,6 +38,7 @@ def test_gunicorn_access_log_formatter_structures_fields():
     entry = json.loads(formatter.format(record))
 
     assert entry["event_type"] == "http.access"
+    assert entry["level"] == "DEBUG"
     assert entry["message"] == ""
     assert entry["client.ip"] == "127.0.0.1"
     assert entry["http.method"] == "GET"
