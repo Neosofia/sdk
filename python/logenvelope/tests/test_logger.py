@@ -102,6 +102,12 @@ def test_log_event_respects_explicit_level(captured_logger, log_schema):
     assert entry["reason"] == "missing_bearer"
 
 
+def test_log_event_skips_below_configured_level(captured_logger):
+    _logger, buffer = captured_logger
+    log_event("security_evaluation_started", level=logging.DEBUG, route="list_items")
+    assert buffer.getvalue().strip() == ""
+
+
 def test_log_event_with_only_event_type(captured_logger, log_schema):
     _logger, buffer = captured_logger
     log_event("health_check_failed")

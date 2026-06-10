@@ -40,6 +40,8 @@ def log_event(
     if state.logger_name is None:
         raise RuntimeError("log_event called before setup_logging")
     logger = logging.getLogger(state.logger_name)
+    if not logger.isEnabledFor(level):
+        return
     record = logger.makeRecord(logger.name, level, "", 0, message, (), None)
     record.event_type = event_type  # type: ignore[attr-defined]
     record.extra_fields = kwargs  # type: ignore[attr-defined]
