@@ -182,7 +182,7 @@ def test_with_authorization_merges_outcome_log_extra_on_allow_and_deny():
     assert events[1].get("tenant_type") is None
 
 
-def test_with_security_logs_evaluation_started_at_debug(monkeypatch):
+def test_with_security_does_not_emit_security_evaluation_started(monkeypatch):
     events: list[dict] = []
     principal_entity = {
         "uid": {"__entity": {"type": "demo::User", "id": "u1"}},
@@ -239,9 +239,7 @@ def test_with_security_logs_evaluation_started_at_debug(monkeypatch):
         response = client.get("/items")
 
     assert response.status_code == 200
-    started = [event for event in events if event["event_type"] == "security_evaluation_started"]
-    assert len(started) == 1
-    assert started[0]["level"] == logging.DEBUG
+    assert [event for event in events if event["event_type"] == "security_evaluation_started"] == []
 
     allowed = [event for event in events if event["event_type"] == "authorization.allowed"]
     assert len(allowed) == 1

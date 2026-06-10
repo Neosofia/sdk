@@ -1,5 +1,4 @@
 import importlib
-import logging
 import re
 from functools import wraps
 from typing import Any, Callable
@@ -328,16 +327,6 @@ def with_security(
                 resource_id=catalog_id or kwargs.get(target_id_arg),
                 tenant_uuid=principal_fields.get("tenant_uuid"),
                 tenant_type=principal_fields.get("tenant_type"),
-            )
-            log_request_event(
-                "security_evaluation_started",
-                level=logging.DEBUG,
-                route=f.__name__,
-                action=action,
-                resource_name=resolved_resource_name,
-                resource_id=catalog_id or kwargs.get(target_id_arg),
-                rate_limit=rate_limit,
-                **principal_fields,
             )
             return authz_decorator(f)(*args, **kwargs)
 
