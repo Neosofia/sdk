@@ -1,4 +1,5 @@
 import importlib
+import logging
 import re
 from functools import wraps
 from typing import Any, Callable
@@ -7,6 +8,7 @@ from authentication_in_the_middle.decorators import with_authentication
 from authorization_in_the_middle.decorators import with_authorization
 from logenvelope.flask import cedar_principal_log_fields, log_request_event
 from authorization_in_the_middle.entities import entity_uid
+from authorization_in_the_middle.logging_context import set_authz_outcome_log_extra
 from flask import current_app, request
 
 _CATALOG_COLLECTION_VERBS = frozenset({"list", "create"})
@@ -320,8 +322,16 @@ def with_security(
             except Exception:
                 principal_fields = {"principal": "unknown"}
 
+            set_authz_outcome_log_extra(
+                rate_limit=rate_limit,
+                resource_name=resolved_resource_name,
+                resource_id=catalog_id or kwargs.get(target_id_arg),
+                tenant_uuid=principal_fields.get("tenant_uuid"),
+                tenant_type=principal_fields.get("tenant_type"),
+            )
             log_request_event(
                 "security_evaluation_started",
+                level=logging.DEBUG,
                 route=f.__name__,
                 action=action,
                 resource_name=resolved_resource_name,

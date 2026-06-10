@@ -15,6 +15,8 @@ from flask import jsonify, make_response
 from logenvelope.flask import log_request_event
 from werkzeug.exceptions import BadRequest, NotFound
 
+from authorization_in_the_middle.logging_context import authz_outcome_log_extra
+
 
 def with_authorization(
     evaluator,
@@ -116,6 +118,7 @@ def with_authorization(
                     action=action,
                     resource=resource,
                     http_status_code=403,
+                    **authz_outcome_log_extra(),
                 )
                 return make_response(jsonify({"error": "forbidden"}), 403)
 
@@ -126,6 +129,7 @@ def with_authorization(
                 action=action,
                 resource=resource,
                 http_status_code=200,
+                **authz_outcome_log_extra(),
             )
             return f(*args, **kwargs)
 
