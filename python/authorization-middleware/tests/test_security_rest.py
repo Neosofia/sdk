@@ -4,6 +4,7 @@ from authorization_in_the_middle.security import (
     _action_parts,
     _catalog_constant_name,
     _catalog_resource_type,
+    _find_catalog_builder,
     _is_catalog_collection,
     _is_catalog_singleton,
     _resolve_id_arg,
@@ -194,5 +195,26 @@ def test_resource_uid_for_audit_list_catalog():
             entities_mod=Entities,
         )
     assert uid == 'authentication::ServiceCatalog::"service-catalog"'
+
+
+def test_find_catalog_builder_prefers_resource_name():
+    class Entities:
+        def build_message_catalog_resource(self):
+            return {"kind": "resource"}
+
+        def build_message_catalog_entity(self):
+            return {"kind": "entity"}
+
+    builder = _find_catalog_builder(Entities(), None, "MessageCatalog")
+    assert builder() == {"kind": "resource"}
+
+
+def test_find_catalog_builder_falls_back_to_entity_name():
+    class Entities:
+        def build_user_catalog_entity(self):
+            return {"kind": "entity"}
+
+    builder = _find_catalog_builder(Entities(), None, "UserCatalog")
+    assert builder() == {"kind": "entity"}
 
 

@@ -82,6 +82,7 @@ resource   = users::UserCatalog::"user-catalog"
 Bearer JWT  →  authentication-in-the-middle  →  g.jwt_claims
                     ↓
          entities.resolve_principal()       →  principal entity
+              (typically ``extract_jwt_principal_entity`` — sets ``attrs.uuid`` from ``sub`` for human User principals)
                     ↓
          path id or catalog constant        →  resource entity
                     ↓
@@ -91,6 +92,25 @@ Bearer JWT  →  authentication-in-the-middle  →  g.jwt_claims
 ```
 
 Authn stays in `authentication-in-the-middle`; authz is this package + your `entities` + policies.
+
+### Scoped catalog entities
+
+Some catalog routes scope authorization to a subject that is not in the path — e.g. list messages for a user via `?user_uuid=` or JSON body. Use `request_scoped_uuid()` in `build_*_catalog_resource()`:
+
+```python
+from authorization_in_the_middle import extract_jwt_principal_entity, request_scoped_uuid
+from authorization_in_the_middle.entities import build_entity_payload
+
+def build_message_catalog_resource():
+    attrs = {}
+    if user_uuid := request_scoped_uuid("user_uuid"):
+        attrs["userUuid"] = user_uuid
+        if tenant := _tenant_for(user_uuid):
+            attrs["tenantId"] = tenant
+    return build_entity_payload(f"{NAMESPACE}::MessageCatalog", MESSAGE_CATALOG_ID, attrs)
+```
+
+Resolution order: Flask path arg → query param → JSON body → principal `attrs.uuid` when the JWT includes a matching actor (default: `patient`). On nested REST routes, the path value wins even when query or body also carry the param. Clinicians and other actors must supply scope explicitly when it is not in the path. Pass `self_for_actors=()` to disable self-scope.
 
 ### `@with_security`
 

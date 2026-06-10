@@ -32,6 +32,8 @@ from authorization_in_the_middle.entities import build_entity_payload, build_ent
 from authorization_in_the_middle.flask_identity import (
     extract_jwt_principal_uid,
     extract_jwt_principal_entity,
+    jwt_claim_principal_attributes,
+    request_scoped_uuid,
 )
 from authorization_in_the_middle.policy_sources import (
     FilesystemPolicySetSource,
@@ -50,4 +52,6 @@ __all__ = [
     "entity_uid",
     "extract_jwt_principal_uid",
     "extract_jwt_principal_entity",
+    "jwt_claim_principal_attributes",
+    "request_scoped_uuid",
 ]

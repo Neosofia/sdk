@@ -277,7 +277,7 @@ def _find_catalog_builder(entities_mod: Any, model_mod: Any, catalog_resource_ty
     for mod in (entities_mod, model_mod):
         if mod is None:
             continue
-        for attr in (f"build_{snake}_entity",):
+        for attr in (f"build_{snake}_resource", f"build_{snake}_entity"):
             if hasattr(mod, attr):
                 fn = getattr(mod, attr)
                 return lambda fn=fn: fn()
@@ -314,13 +314,13 @@ def _rest_entities_for_item(
 
 
 def _rest_entities_for_catalog(
-    build_catalog_entity: Callable[[], dict[str, Any]],
+    build_catalog_resource: Callable[[], dict[str, Any]],
     entities_mod: Any,
 ) -> list[dict[str, Any]]:
-    """Principal + **Catalog** resource entity (fixed catalog id)."""
+    """Principal + **Catalog** resource record (fixed catalog id)."""
     return [
         _resolve_principal(entities_mod),
-        build_catalog_entity(),
+        build_catalog_resource(),
     ]
 
 
@@ -499,7 +499,7 @@ def with_security(
     at request time (Catalog vs Member per README).
 
     ``src.authorization.entities`` must provide ``NAMESPACE``, ``resolve_principal()``,
-    and ``build_{model}_resource_entity`` / ``build_{catalog}_entity`` as needed.
+    and ``build_{model}_resource_entity`` / ``build_{catalog}_resource`` as needed.
     """
     if action is not None and resource is not None:
         raise TypeError("with_security: pass action or resource, not both")
