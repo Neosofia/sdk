@@ -1,10 +1,18 @@
+from flask import Flask
+
 from authorization_in_the_middle.security import (
     _action_parts,
     _catalog_constant_name,
     _catalog_resource_type,
     _is_catalog_collection,
     _is_catalog_singleton,
+    _resolve_id_arg,
+    _resource_uid_for_action,
     _type_to_snake,
+    _uses_catalog_scope,
+    infer_crud_action,
+    infer_id_arg,
+    infer_resource,
 )
 
 
@@ -12,7 +20,6 @@ def test_action_parts():
     assert _action_parts('Action::"user:read"') == ("user", "read")
     assert _action_parts('Action::"user:list"') == ("user", "list")
     assert _action_parts('Action::"role_catalog:read"') == ("role_catalog", "read")
-    assert _action_parts('Action::"service:audit:read"') == ("service", "audit:read")  # sub-resource verb
 
 
 def test_catalog_detection():
@@ -36,3 +43,152 @@ def test_catalog_constant_name():
 def test_type_to_snake():
     assert _type_to_snake("UserCatalog") == "user_catalog"
     assert _type_to_snake("RoleCatalog") == "role_catalog"
+
+
+def _bind_request(app: Flask, path: str, method: str = "GET"):
+    from flask import request
+
+    adapter = app.url_map.bind("")
+    endpoint, view_args = adapter.match(path, method=method)
+    rule = app.url_map._rules_by_endpoint[endpoint][0]
+    ctx = app.test_request_context(path, method=method)
+    ctx.request.url_rule = rule
+    ctx.request.view_args = view_args
+    return ctx
+
+
+def test_infer_resource():
+    app = Flask(__name__)
+
+    @app.route("/api/services")
+    def services():
+        return ""
+
+    @app.route("/api/v1/tenants/<tenant_uuid>")
+    def tenant(tenant_uuid: str):
+        return tenant_uuid
+
+    @app.route("/api/idp/failed-authentications")
+    def idp_failed():
+        return ""
+
+    @app.route("/api/people/<person_id>")
+    def people(person_id: str):
+        return person_id
+
+    with _bind_request(app, "/api/services"):
+        assert infer_resource() == "service"
+    @app.route("/api/v2/tenants/<tenant_uuid>")
+    def tenant_v2(tenant_uuid: str):
+        return tenant_uuid
+
+    with _bind_request(app, "/api/v1/tenants/t1"):
+        assert infer_resource() == "tenant"
+    with _bind_request(app, "/api/v2/tenants/t1"):
+        assert infer_resource() == "tenant"
+    with _bind_request(app, "/api/idp/failed-authentications"):
+        assert infer_resource() == "idp"
+    with _bind_request(app, "/api/people/p1"):
+        assert infer_resource() == "person"
+
+
+def test_infer_crud_action_collection():
+    app = Flask(__name__)
+
+    @app.route("/api/services", methods=["GET", "POST"])
+    def services():
+        return ""
+
+    with _bind_request(app, "/api/services", "GET"):
+        assert infer_crud_action() == 'Action::"service:list"'
+    with _bind_request(app, "/api/services", "POST"):
+        assert infer_crud_action() == 'Action::"service:create"'
+
+
+def test_infer_crud_action_member():
+    app = Flask(__name__)
+
+    @app.route("/api/services/<slug>", methods=["GET", "PUT"])
+    def service(slug: str):
+        return slug
+
+    @app.route("/api/v1/tenants/<tenant_uuid>", methods=["GET", "PUT"])
+    def tenant(tenant_uuid: str):
+        return tenant_uuid
+
+    with _bind_request(app, "/api/services/chat", "GET"):
+        assert infer_crud_action() == 'Action::"service:read"'
+
+    with _bind_request(app, "/api/v1/tenants/t1", "PUT"):
+        assert infer_crud_action() == 'Action::"tenant:update"'
+
+
+def test_infer_id_arg():
+    app = Flask(__name__)
+
+    @app.route("/api/services/<slug>")
+    def service(slug: str):
+        return slug
+
+    with _bind_request(app, "/api/services/chat"):
+        assert infer_id_arg() == "slug"
+
+
+def test_resolve_id_arg_prefers_explicit():
+    app = Flask(__name__)
+
+    @app.route("/api/services/<slug>")
+    def service(slug: str):
+        return slug
+
+    with _bind_request(app, "/api/services/chat"):
+        assert _resolve_id_arg("slug", "service") == "slug"
+        assert _resolve_id_arg(None, "service") == "slug"
+
+
+def test_resolve_id_arg_falls_back_to_model_uuid():
+    assert _resolve_id_arg(None, "user") == "user_uuid"
+
+
+def test_uses_catalog_scope_for_compound_list_without_member():
+    app = Flask(__name__)
+
+    @app.route("/api/services/audits")
+    def catalog_audits():
+        return ""
+
+    @app.route("/api/services/<slug>/audits")
+    def member_audits(slug: str):
+        return slug
+
+    with _bind_request(app, "/api/services/audits"):
+        assert _uses_catalog_scope("service", "audit:list", None) is True
+
+    with _bind_request(app, "/api/services/chat/audits"):
+        assert _uses_catalog_scope("service", "audit:list", "slug") is False
+
+
+def test_resource_uid_for_audit_list_catalog():
+    app = Flask(__name__)
+
+    class Entities:
+        NAMESPACE = "authentication"
+        SERVICE_CATALOG_ID = "service-catalog"
+
+    @app.route("/api/services/audits")
+    def catalog_audits():
+        return ""
+
+    with _bind_request(app, "/api/services/audits"):
+        uid = _resource_uid_for_action(
+            namespace="authentication",
+            model_name="service",
+            verb="audit:list",
+            id_arg=None,
+            resource_type=None,
+            catalog_id=None,
+            entities_mod=Entities,
+        )
+    assert uid == 'authentication::ServiceCatalog::"service-catalog"'
+
+

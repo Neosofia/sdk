@@ -228,7 +228,6 @@ def test_with_security_does_not_emit_security_evaluation_started(monkeypatch):
         rate_limit="60 per minute",
         resource_fn=lambda: 'demo::ItemCatalog::"catalog"',
         entities_fn=lambda: [principal_entity],
-        rest=False,
         namespace="demo",
         catalog_id="catalog",
     )

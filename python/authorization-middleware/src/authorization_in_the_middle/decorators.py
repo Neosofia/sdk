@@ -21,7 +21,7 @@ from authorization_in_the_middle.logging_context import authz_outcome_log_extra
 def with_authorization(
     evaluator,
     principal_fn: Callable[[], str],
-    action: str,
+    action: str | Callable[[], str],
     resource_fn: Callable[[], str],
     entities_fn: Callable[[], list[dict[str, Any]]] | None = None,
     context_fn: Callable[[], dict[str, Any]] | None = None,
@@ -74,17 +74,20 @@ def with_authorization(
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         def decorated(*args, **kwargs) -> Any:
+            resolved_action = action() if callable(action) else action
             try:
                 principal = principal_fn()
                 resource = resource_fn()
                 entities = entities_fn() if entities_fn else []
                 context = context_fn() if context_fn else {}
-                allowed = evaluator.is_authorized(principal, action, resource, entities, context)
+                allowed = evaluator.is_authorized(
+                    principal, resolved_action, resource, entities, context
+                )
             except BadRequest as exc:
                 log_event(
                     "authorization.invalid_request",
                     route=f.__name__,
-                    action=action,
+                    action=resolved_action,
                     http_status_code=400,
                     error_type=type(exc).__name__,
                 )
@@ -93,7 +96,7 @@ def with_authorization(
                 log_event(
                     "authorization.resource_not_found",
                     route=f.__name__,
-                    action=action,
+                    action=resolved_action,
                     http_status_code=404,
                     error_type=type(exc).__name__,
                 )
@@ -102,7 +105,7 @@ def with_authorization(
                 log_event(
                     "authorization.evaluation_error",
                     route=f.__name__,
-                    action=action,
+                    action=resolved_action,
                     http_status_code=503,
                     error_type=type(exc).__name__,
                 )
@@ -115,7 +118,7 @@ def with_authorization(
                     "authorization.denied",
                     route=f.__name__,
                     principal=principal,
-                    action=action,
+                    action=resolved_action,
                     resource=resource,
                     http_status_code=403,
                     **authz_outcome_log_extra(),
@@ -126,7 +129,7 @@ def with_authorization(
                 "authorization.allowed",
                 route=f.__name__,
                 principal=principal,
-                action=action,
+                action=resolved_action,
                 resource=resource,
                 http_status_code=200,
                 **authz_outcome_log_extra(),

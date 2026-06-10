@@ -29,7 +29,7 @@ Policies only see those three UIDs plus **entity records** (attributes for princ
 | **Action** | The verb (`user:read`, `user:list`, …). |
 | **Resource** | The target of the action (`User`, `UserCatalog`, `Service`, …). |
 | **Entity** | [Cedar](https://docs.cedarpolicy.com/overview/terminology.html) name for a typed object with an id and **attributes** (`uid`, `attrs`, `parents`). In our code: the JSON from `build_entity_payload()`. |
-| **Member** | One record — id from the path (`user_id`, `slug`). |
+| **Member** | One record — id from the path (`user_uuid`, `slug`). |
 | **Catalog** | REST **collection** (list/create) — Cedar type `*Catalog`, fixed id (`user-catalog`). Same as “the list endpoint,” not a product catalog. |
 | **Capability** | Service constant for an action string. |
 
@@ -59,11 +59,11 @@ Principal on every row = JWT **`sub`**.
 |---------|--------------|------------------|-------------------|-------------------|
 | **List** users (paginate, search) | `GET /api/v1/users` | `user:list` | `users::UserCatalog` | Fixed `user-catalog` |
 | **Create** a user | `POST /api/v1/users` | `user:create` | `users::UserCatalog` | Fixed `user-catalog` |
-| **Get** one user | `GET /api/v1/users/{user_id}` | `user:read` | `users::User` | Path `user_id` |
-| **Replace** one user (full body) | `PUT /api/v1/users/{user_id}` | `user:update` | `users::User` | Path `user_id` |
-| **Update** one user (partial) | `PATCH /api/v1/users/{user_id}` | `user:update` | `users::User` | Path `user_id` |
-| **Delete** one user | `DELETE /api/v1/users/{user_id}` | `user:delete` | `users::User` | Path `user_id` |
-| **Get** a user’s audit history | `GET /api/v1/users/{user_id}/audits` | `user:read` | `users::User` | Path `user_id` |
+| **Get** one user | `GET /api/v1/users/{user_uuid}` | `user:read` | `users::User` | Path `user_uuid` |
+| **Replace** one user (full body) | `PUT /api/v1/users/{user_uuid}` | `user:update` | `users::User` | Path `user_uuid` |
+| **Update** one user (partial) | `PATCH /api/v1/users/{user_uuid}` | `user:update` | `users::User` | Path `user_uuid` |
+| **Delete** one user | `DELETE /api/v1/users/{user_uuid}` | `user:delete` | `users::User` | Path `user_uuid` |
+| **Get** a user’s audit history | `GET /api/v1/users/{user_uuid}/audits` | `user:read` | `users::User` | Path `user_uuid` |
 | **Read** role picklists | `GET /api/v1/roles` | `role_catalog:read` | `users::RoleCatalog` | Fixed `role-catalog` |
 | **Rotate** a service credential | `POST /api/services/{slug}/rotate` | `service:rotate` | `authentication::Service` | Path `slug` |
 
@@ -93,17 +93,17 @@ Bearer JWT  →  authentication-in-the-middle  →  g.jwt_claims
 
 Authn stays in `authentication-in-the-middle`; authz is this package + your `entities` + policies.
 
-### `@with_security` (`rest=True`, default)
+### `@with_security`
 
-Infers `resource_fn` and `entities_fn` from `action` + path:
+Omit ``action`` to infer CRUD from HTTP method + path. Pass any parameter explicitly to override; omitted ``resource_fn`` / ``entities_fn`` are inferred from ``action`` + path:
 
 | Action shape | Infers |
 |--------------|--------|
-| `user:read`, `profile:read`, … | Member — `{Model}` + path arg `{model}_id` |
+| `user:read`, `profile:read`, … | Member — `{Model}` + path arg `{model}_uuid` (or inferred from route rule) |
 | `user:list`, `user:create`, … | Collection — `{Model}Catalog` + `{MODEL}_CATALOG_ID` |
 | `role_catalog:read`, … | Catalog singleton — `RoleCatalog` + `ROLE_CATALOG_ID` |
 
-**Path argument name** comes from the **action** (`user:read` → `user_id`), not by parsing your `@bp.route`. It must match `request.view_args` — if your route uses `/<slug>` or `/<tenant_uuid>`, pass `id_arg="slug"` or `id_arg="tenant_uuid"`. When the path is `/<user_id>`, omit `id_arg`.
+**Path argument name** is inferred from the route rule (`/<tenant_uuid>` → `tenant_uuid`). When that fails, the fallback is `{model}_uuid`. Pass `id_arg` only for non-uuid keys such as `slug`.
 
 Requires `src.authorization.entities`: `NAMESPACE`, `resolve_principal()` (or `load_principal_entity()`), and builders/loaders per conventions. Override `entities_fn` / `resource_fn` when layout does not match `src.services.{model}_service.get_{model}_or_404`.
 
@@ -115,9 +115,9 @@ Typical platform route (REST inference — see Rosetta stone):
 from authorization_in_the_middle.security import with_security
 from src.bootstrap.capabilities import Capabilities
 
-@bp.route("/<user_id>", methods=["GET"])
+@bp.route("/<user_uuid>", methods=["GET"])
 @with_security(action=Capabilities.USER_READ, rate_limit="60 per minute")
-def get_user(user_id: str):
+def get_user(user_uuid: str):
     ...
 ```
 

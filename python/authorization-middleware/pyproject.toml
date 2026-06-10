@@ -10,7 +10,7 @@ exclude = [".venv", ".venv-test", "tests"]
 
 [project]
 name = "authorization-in-the-middle"
-version = "0.4.10"
+version = "0.4.22"
 description = "Authorization middleware for Neosofia platform services."
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
     "cedarpy>=4.8.0",
     "flask>=3.0.0",
+    "inflect>=7.5.0",
     "logenvelope>=0.3.3",
 ]
 
@@ -43,6 +44,3 @@ dev = [
     "pytest-cov>=7.1.0",
 ]
 
-[tool.uv.sources]
-authentication-in-the-middle = { workspace = true }
-logenvelope = { workspace = true }
