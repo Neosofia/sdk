@@ -52,12 +52,13 @@ dev = [
 
 [[package]]
 name = "authorization-in-the-middle"
-version = "0.4.26"
+version = "0.5.0"
 source = { editable = "python/authorization-middleware" }
 dependencies = [
     { name = "cedarpy" },
     { name = "flask" },
     { name = "inflect" },
+    { name = "jsonschema" },
     { name = "logenvelope" },
 ]
 
@@ -73,6 +74,7 @@ requires-dist = [
     { name = "cedarpy", specifier = ">=4.8.0" },
     { name = "flask", specifier = ">=3.0.0" },
     { name = "inflect", specifier = ">=7.5.0" },
+    { name = "jsonschema", specifier = ">=4.23.0" },
     { name = "logenvelope", editable = "python/logenvelope" },
 ]
 

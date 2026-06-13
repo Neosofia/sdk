@@ -92,7 +92,7 @@ def test_request_scoped_uuid_prefers_body_over_self_scope():
         assert request_scoped_uuid("user_uuid") == "body-uuid"
 
 
-def test_request_scoped_uuid_self_scopes_patient_actor():
+def test_request_scoped_uuid_self_scopes_when_configured():
     app = Flask(__name__)
     with app.test_request_context("/"):
         g.jwt_claims = {
@@ -100,7 +100,7 @@ def test_request_scoped_uuid_self_scopes_patient_actor():
             "neosofia:actors": ["patient"],
             "neosofia:token_type": "human",
         }
-        assert request_scoped_uuid("user_uuid") == "self-uuid"
+        assert request_scoped_uuid("user_uuid", self_for_actors=("patient",)) == "self-uuid"
 
 
 def test_request_scoped_uuid_requires_explicit_for_clinician():

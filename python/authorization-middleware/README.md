@@ -76,22 +76,251 @@ action     = Action::"user:list"
 resource   = users::UserCatalog::"user-catalog"
 ```
 
-### Request flow
+### Request flow (`@with_security`)
 
-```text
-Bearer JWT  →  authentication-in-the-middle  →  g.jwt_claims
-                    ↓
-         entities.resolve_principal()       →  principal entity
-              (typically ``extract_jwt_principal_entity`` — sets ``attrs.uuid`` from ``sub`` for human User principals)
-                    ↓
-         path id or catalog constant        →  resource entity
-                    ↓
-         CedarEvaluator.is_authorized(...)
-                    ↓
-              allow → handler              deny → 403
+Authn lives in `authentication-in-the-middle`; authz is this package + your `src.authorization.entities` + Cedar policies.
+
+```mermaid
+flowchart TD
+    subgraph ingress["Ingress"]
+        REQ[HTTP request]
+        RL[Rate limiter optional]
+    end
+
+    subgraph authn["Authentication"]
+        JWT[with_authentication]
+        CLAIMS[g.jwt_claims]
+    end
+
+    subgraph write["REST write path POST PUT PATCH"]
+        INFER_W[Infer create or update action]
+        OAPI[parse_flask_request_body]
+        VAL[g.validated_body]
+        PF[g.present_fields raw JSON keys]
+        PLAN[plan_*_from_openapi in service]
+        WR[g.write_resource planned row]
+    end
+
+    subgraph infer["Action and resource inference"]
+        ACT[infer_crud_action or explicit action]
+        MEM{Member or Catalog?}
+        CAT[Catalog UID e.g. user-catalog]
+        PATH[Member UID from path id]
+        WRITE_UID[Write UID from planned row + presentFields]
+    end
+
+    subgraph entities["Entity assembly"]
+        PR[resolve_principal]
+        RES[build_*_resource_entity or build_write_*_entity]
+        ALIGN[align_shared_uid_entity_attrs when UIDs match]
+        ENT["entities_fn → [principal, resource]"]
+    end
+
+    subgraph cedar["Cedar evaluation"]
+        CTX[request_context http_method route]
+        EVAL[CedarEvaluator.is_authorized]
+        ALLOW{allowed?}
+    end
+
+    subgraph outcome["Outcome"]
+        HND[Route handler]
+        E400[400 invalid_request]
+        E403[403 forbidden]
+        E503[503 authorization_unavailable]
+    end
+
+    REQ --> RL --> JWT --> CLAIMS
+    CLAIMS --> INFER_W
+    INFER_W -->|write verb| OAPI
+    OAPI --> VAL
+    OAPI --> PF
+    VAL --> PLAN --> WR
+    INFER_W --> ACT
+    WR --> WRITE_UID
+    ACT --> MEM
+    MEM -->|list create catalog read| CAT
+    MEM -->|read update delete| PATH
+    WRITE_UID --> RES
+    CAT --> RES
+    PATH --> RES
+    CLAIMS --> PR
+    PR --> ALIGN
+    RES --> ALIGN --> ENT
+    ENT --> EVAL
+    CTX --> EVAL
+    ACT --> EVAL
+    WRITE_UID --> EVAL
+    EVAL --> ALLOW
+    ALLOW -->|yes| HND
+    ALLOW -->|no| E403
+    OAPI -->|schema error| E400
+    PLAN -->|plan error| E400
+    EVAL -->|evaluator error| E503
 ```
 
-Authn stays in `authentication-in-the-middle`; authz is this package + your `entities` + policies.
+**Read path** (GET, DELETE without body planning): skips the write subgraph — infer action → load principal + member/catalog entity → Cedar → handler.
+
+**Custom actions** (provision, rotate): pass `action=` (and usually `entities_fn` / `resource_fn`); set `validate_openapi=True` when the route still accepts JSON.
+
+### Cedar helpers — what policies can use
+
+Cedar evaluates **principal + action + resource** UIDs plus **entity records** and optional **request context**. It does not see HTTP or JWT directly — the SDK and your `src.authorization.entities` translate the request into attrs policies can reference.
+
+#### Request context (`context_fn`)
+
+| Attribute | Source | Example use |
+|-----------|--------|-------------|
+| `http_method` | `request_context()` | Rare; prefer action inference |
+| `route` | Flask `url_rule.rule` | Debugging, route-specific rules |
+
+#### Write payload intent (`presentFields`)
+
+On REST **create** and **update**, the SDK attaches a sorted set of **raw JSON keys** (before defaults) to the resource entity:
+
+| Attribute | Type | Set by | Example in Cedar |
+|-----------|------|--------|------------------|
+| `presentFields` | Set of String | `payload.present_field_names` + `_entities_for_write_member` | `!resource.presentFields.contains("roles")` |
+
+When principal and resource share the same UID (self-update), `align_shared_uid_entity_attrs` merges `presentFields` into **both** records so cedarpy sees identical attrs.
+
+#### Role slug namespaces (`roleNamespaces`)
+
+When the client sends `roles` on a write, the SDK derives sorted unique namespace prefixes from full slugs (`cro.admin` → `cro`). Cedar `Set.contains` matches whole set elements — use `roleNamespaces` for prefix-style rules, not substring checks on `roles`.
+
+| Attribute | Type | Set by | Example in Cedar |
+|-----------|------|--------|------------------|
+| `roleNamespaces` | Set of String | `write_role_namespace_attrs` when `roles` ∈ `presentFields` | `resource.roleNamespaces.contains("cro")` |
+
+Requires `resource has roleNamespaces` in policy when the attribute may be absent on read paths.
+
+#### Exact set fields (`rolesExact`, `{field}Exact`)
+
+When the client sends a list field on a write (for example `roles`), the SDK can derive a canonical exact set so policies avoid `forbid` + `contains` smells. Use `write_exact_set_field_attrs` (or rely on `with_security` for `roles`).
+
+| Attribute | Type | Set by | Example in Cedar |
+|-----------|------|--------|------------------|
+| `rolesExact` | Set of String | `write_exact_set_field_attrs` when `roles` ∈ `presentFields` | `resource.rolesExact == ["patient.self"]` |
+
+Pass `allowed=[...]` to the helper to omit the attribute unless the payload matches exactly (policy: `resource has rolesExact`). Without `allowed`, the attribute is the canonical proposed set for equality checks in Cedar.
+
+#### JWT → principal attrs (`flask_identity`)
+
+`jwt_claim_principal_attributes` maps `neosofia:*` claims to Cedar names:
+
+| JWT claim | Cedar attr | Notes |
+|-----------|------------|-------|
+| `sub` | `uuid` | Human `User` principals (not `token_type: service`) |
+| `neosofia:principal_type` | entity type | `User`, `Service`, … |
+| `neosofia:tenant_uuid` | `tenantId` | |
+| `neosofia:tenant_type` | `tenantType` | e.g. `platform`, `site`, `cro` |
+| `neosofia:session_actors` | `sessionActors` | |
+| `neosofia:actors` | `actors` | Tier-1 actor list (JWT); narrowed by `X-Active-Actor` in authn |
+| `neosofia:roles` | `roles` | Tier-2 short org roles within tenant type |
+| `neosofia:token_type` | `tokenType` | `human` or `service` |
+| other `neosofia:*` | same name after prefix | e.g. `neosofia:foo` → `foo` |
+
+`extract_jwt_principal_entity` / `extract_jwt_principal_uid` build a principal from `g.jwt_claims` only. Production services usually use `resolve_principal()` to enrich JWT attrs with registry row data.
+
+#### Tier-1 actor flags (`cedar_attrs.tier1_actor_flags`)
+
+From JWT `actors`, the SDK (or your domain module) sets booleans policies use instead of parsing lists:
+
+| Cedar attr | When true |
+|------------|-----------|
+| `isOperator` | `operator` in JWT actors |
+| `isStudy` | `study` in JWT actors |
+| `isClinician` | `clinician` in JWT actors |
+| `isPatient` | `patient` in JWT actors |
+
+Actor class names come from your catalog (`actor_classes()` in user service); flag names are `is` + capitalized actor slug.
+
+#### Entity record attrs (service-owned, typical user service)
+
+Your `build_*_resource_entity` / `principal_cedar_attrs` supply row state. User service policies commonly reference:
+
+| Attr | On | Meaning |
+|------|-----|---------|
+| `uuid` | principal, resource | Registry user id |
+| `tenantId` | principal, resource | Org tenant UUID |
+| `tenantType` | principal | From JWT (`platform`, `site`, `cro`, …) |
+| `roles` | principal, resource | Tier-2 short roles on principal; full catalog slugs on resource |
+| `tokenType` | principal, resource | `human` or `service` |
+| `serviceSlug` | `users::Service` principal | e.g. `authentication` for provision |
+| `presentFields` | resource (writes) | See above |
+| `roleNamespaces` | resource (writes) | Namespace prefixes from proposed `roles` slugs |
+
+Catalog resources may add scope attrs, e.g. `UserCatalog.tenantId` for tenant-scoped list.
+
+#### Entity shape helpers (`entities`)
+
+| Helper | Purpose |
+|--------|---------|
+| `entity_uid(type, id)` | Cedar UID string, e.g. `users::User::"uuid"` |
+| `build_entity_payload(type, id, attrs, parents)` | Full evaluator entity dict |
+| `build_catalog_entity(namespace, cedar_type, catalog_id, attrs?)` | Catalog entity for any Cedar catalog type |
+| `catalog_resource_uid(namespace, cedar_type, catalog_id)` | Catalog **Resource** UID string |
+| `catalog_entities(resolve_principal, build_catalog)` | `[principal, catalog]` for `entities_fn` |
+| `build_entity_ref(type, id)` | `__entity` reference inside attrs |
+| `ID_PLACEHOLDER` / `is_id_placeholder` | Create auth before id assignment (`proposed`) |
+| `resolve_entity_id(record, field, fallback)` | Id from planned row for write entities |
+
+#### Scoped catalog resolution (`request_scoped_uuid`)
+
+For list/create on a catalog when the subject is not in the path (`?user_uuid=`, body field):
+
+Resolution order: path arg → query → JSON body → principal `uuid` when `self_for_actors` matches JWT actors. Use in `build_*_catalog_resource()` to set attrs like `userUuid` / `tenantId`.
+
+#### OpenAPI ingress (`openapi_request`)
+
+| Helper | Purpose |
+|--------|---------|
+| `bind_openapi_spec(app)` | Cache spec at startup |
+| `parse_flask_request_body()` | Validate body + return `(validated_body, present_fields, operation)` |
+| `validate_request_body()` | jsonschema against operation schema |
+| `operation_for_request()` | Match Flask rule + method to OpenAPI operation |
+
+#### REST inference (`security`)
+
+| Helper | Purpose |
+|--------|---------|
+| `infer_crud_action()` | `user:list`, `user:create`, `user:read`, `user:update`, `user:delete` |
+| `infer_resource()` | First noun segment from route |
+| `infer_id_arg()` | First `<param>` in route rule |
+| `with_security()` | Full JWT + Cedar stack (see diagram above) |
+| `request_context()` / `request_view_arg()` | Context and path args for custom wiring |
+
+#### Payload / shared UID (`payload`)
+
+| Helper | Purpose |
+|--------|---------|
+| `present_field_names(payload)` | Sorted keys for Cedar `presentFields` |
+| `canonical_string_set(values)` | Sorted unique strings for Cedar Set equality |
+| `role_namespaces(roles)` | Sorted unique slug namespaces (`cro` from `cro.admin`) |
+| `write_role_namespace_attrs(write_record, resource, present_fields)` | Cedar `roleNamespaces` on writes when `roles` sent |
+| `write_exact_set_field_attrs(write_record, resource, present_fields, field, allowed=…)` | Cedar `{field}Exact` for exact-set policy checks |
+| `align_shared_uid_entity_attrs(principal, resource, source=…)` | Identical attrs when UIDs match (cedarpy requirement) |
+
+#### Service conventions (`with_security` discovers)
+
+| Convention | Location | Used for |
+|------------|----------|----------|
+| `NAMESPACE`, `resolve_principal()` | `src.authorization.entities` | Principal entity |
+| `build_{model}_resource_entity(id, row)` | entities or models | Member reads |
+| `build_write_{model}_entity(record)` | entities | Write authz resource |
+| `build_{catalog}_resource()` | entities | Catalog list/create |
+| `plan_create_from_openapi`, `plan_patch_from_openapi`, … | `src.services.{model}_service` | Planned row before Cedar on writes |
+| `{MODEL}_CATALOG_ID`, `ROLE_CATALOG_ID`, … | entities | Fixed catalog entity ids |
+
+Override any inferred `resource_fn` / `entities_fn` when your layout does not match these conventions.
+
+#### Flask `g` attributes (`with_security` writes)
+
+| `g` field | When set | Handler use |
+|-----------|----------|-------------|
+| `g.validated_body` | POST/PUT/PATCH with OpenAPI parse | Schema-validated JSON |
+| `g.planned_body` | Same | Copy of validated body for planning |
+| `g.present_fields` | Same | Raw JSON keys (Cedar field allowlists) |
+| `g.write_resource` | REST create/update after `plan_*_from_openapi` | Planned row for persistence |
 
 ### Scoped catalog entities
 

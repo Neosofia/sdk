@@ -28,30 +28,59 @@ def get_patient(patient_id):
 
 from authorization_in_the_middle.decorators import with_authorization
 from authorization_in_the_middle.evaluator import CedarEvaluator, StubEvaluator
-from authorization_in_the_middle.entities import build_entity_payload, build_entity_ref, entity_uid
+from authorization_in_the_middle.entities import (
+    ID_PLACEHOLDER,
+    build_catalog_entity,
+    build_entity_payload,
+    build_entity_ref,
+    catalog_entities,
+    catalog_resource_uid,
+    entity_uid,
+    is_id_placeholder,
+    resolve_entity_id,
+)
+from authorization_in_the_middle.openapi_request import bind_openapi_spec, init_openapi_spec
 from authorization_in_the_middle.flask_identity import (
     extract_jwt_principal_uid,
     extract_jwt_principal_entity,
     jwt_claim_principal_attributes,
     request_scoped_uuid,
 )
+from authorization_in_the_middle.payload import (
+    align_shared_uid_entity_attrs,
+    canonical_string_set,
+    present_field_names,
+    write_exact_set_field_attrs,
+)
 from authorization_in_the_middle.policy_sources import (
     FilesystemPolicySetSource,
     StaticPolicySetSource,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.5.0"
 __all__ = [
     "CedarEvaluator",
     "FilesystemPolicySetSource",
     "StaticPolicySetSource",
     "StubEvaluator",
+    "bind_openapi_spec",
+    "init_openapi_spec",
     "with_authorization",
+    "ID_PLACEHOLDER",
+    "build_catalog_entity",
     "build_entity_payload",
     "build_entity_ref",
+    "catalog_entities",
+    "catalog_resource_uid",
     "entity_uid",
+    "is_id_placeholder",
+    "resolve_entity_id",
     "extract_jwt_principal_uid",
     "extract_jwt_principal_entity",
     "jwt_claim_principal_attributes",
     "request_scoped_uuid",
+    "align_shared_uid_entity_attrs",
+    "canonical_string_set",
+    "present_field_names",
+    "write_exact_set_field_attrs",
 ]

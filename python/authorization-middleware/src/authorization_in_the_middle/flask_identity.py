@@ -82,14 +82,14 @@ def extract_jwt_principal_entity(namespace: Optional[str] = None, default_type: 
 def request_scoped_uuid(
     param_name: str,
     *,
-    self_for_actors: Sequence[str] = ("patient",),
+    self_for_actors: Sequence[str] = (),
 ) -> str:
     """Resolve a subject UUID from the request or the authenticated principal.
 
     Resolution order: Flask path args, query string, JSON body, then principal
-    ``uuid`` when any ``self_for_actors`` entry is on JWT actors (default: patient
-    self-scope). Pass ``self_for_actors=()`` to require an explicit request value.
-    Intended for ``build_*_catalog_resource`` scoping in Cedar policies.
+    ``uuid`` when any ``self_for_actors`` entry is on JWT actors. By default
+    self-scope is disabled; pass actor names (e.g. ``("patient",)``) when the
+  service policy allows implicit self binding.
     """
     view_args = request.view_args or {}
     if param_name in view_args:
