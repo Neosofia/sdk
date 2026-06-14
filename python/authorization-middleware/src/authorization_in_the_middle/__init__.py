@@ -41,10 +41,14 @@ from authorization_in_the_middle.entities import (
 )
 from authorization_in_the_middle.openapi_request import bind_openapi_spec, init_openapi_spec
 from authorization_in_the_middle.flask_identity import (
+    build_jwt_principal_entity,
+    build_service_principal_entity,
     extract_jwt_principal_uid,
     extract_jwt_principal_entity,
     jwt_claim_principal_attributes,
+    principal_cedar_attrs,
     request_scoped_uuid,
+    resolve_jwt_principal,
 )
 from authorization_in_the_middle.payload import (
     align_shared_uid_entity_attrs,
@@ -57,7 +61,7 @@ from authorization_in_the_middle.policy_sources import (
     StaticPolicySetSource,
 )
 
-__version__ = "0.5.0"
+version = "0.7.0"
 __all__ = [
     "CedarEvaluator",
     "FilesystemPolicySetSource",
@@ -78,6 +82,10 @@ __all__ = [
     "extract_jwt_principal_uid",
     "extract_jwt_principal_entity",
     "jwt_claim_principal_attributes",
+    "principal_cedar_attrs",
+    "build_jwt_principal_entity",
+    "build_service_principal_entity",
+    "resolve_jwt_principal",
     "request_scoped_uuid",
     "align_shared_uid_entity_attrs",
     "canonical_string_set",

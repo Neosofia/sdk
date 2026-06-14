@@ -2,10 +2,18 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from authorization_in_the_middle.action_scope import _type_to_snake
 from authorization_in_the_middle.entities import entity_uid
+from authorization_in_the_middle.rest_defaults import (
+    default_catalog_id,
+    namespace_from_entities,
+    synthesize_catalog_builder,
+    synthesize_member_builder,
+    synthesize_write_builder,
+)
 
 
 def _import_entities_module():
@@ -37,7 +45,10 @@ def _find_resource_builder(
     model_mod: Any,
     model_name: str,
     builder_module_name: str,
-) -> Callable[[str, dict[str, Any]], dict[str, Any]]:
+    *,
+    namespace: str | None = None,
+    id_arg: str | None = None,
+) -> Callable[[str, dict[str, Any] | None], dict[str, Any]]:
     candidates: list[tuple[Any, str]] = []
     if entities_mod is not None:
         candidates.extend(
@@ -56,13 +67,31 @@ def _find_resource_builder(
     for mod, attr in candidates:
         if mod is not None and hasattr(mod, attr):
             return getattr(mod, attr)
-    raise AttributeError(
-        f"No resource entity builder found for model '{model_name}' "
-        f"(module '{builder_module_name}')"
+    resolved_namespace = namespace or namespace_from_entities(
+        entities_mod,
+        model_name,
+        builder_module_name,
+    )
+    return synthesize_member_builder(
+        namespace=resolved_namespace,
+        model_name=model_name,
+        id_arg=id_arg,
+        entities_mod=entities_mod,
     )
 
 
-def _find_catalog_builder(entities_mod: Any, model_mod: Any, catalog_resource_type: str) -> Callable[[], dict[str, Any]]:
+def _find_catalog_builder(
+    entities_mod: Any,
+    model_mod: Any,
+    catalog_resource_type: str,
+    *,
+    namespace: str | None = None,
+    model_name: str | None = None,
+    verb: str = "list",
+    catalog_id: str | None = None,
+    catalog_id_from: str | None = None,
+    catalog_attrs: dict[str, Any] | Callable[[], dict[str, Any]] | None = None,
+) -> Callable[[], dict[str, Any]]:
     snake = _type_to_snake(catalog_resource_type)
     for mod in (entities_mod, model_mod):
         if mod is None:
@@ -71,26 +100,67 @@ def _find_catalog_builder(entities_mod: Any, model_mod: Any, catalog_resource_ty
             if hasattr(mod, attr):
                 fn = getattr(mod, attr)
                 return lambda fn=fn: fn()
-    raise AttributeError(f"No catalog builder found for '{catalog_resource_type}'")
+    resolved_namespace = namespace
+    if resolved_namespace is None and entities_mod is not None:
+        resolved_namespace = getattr(entities_mod, "NAMESPACE", None)
+    if resolved_namespace is None:
+        raise AttributeError(f"No catalog builder found for '{catalog_resource_type}'")
+    resolved_model = model_name or snake.replace("_catalog", "")
+    resolved_catalog_id = default_catalog_id(
+        resolved_model,
+        verb,
+        entities_mod,
+        explicit=catalog_id,
+        catalog_id_from=catalog_id_from,
+    )
+    return synthesize_catalog_builder(
+        namespace=str(resolved_namespace),
+        catalog_resource_type=catalog_resource_type,
+        catalog_id=resolved_catalog_id,
+        catalog_attrs=catalog_attrs,
+    )
 
 
 def _find_write_entity_builder(
     entities_mod: Any,
     model_name: str,
+    *,
+    namespace: str | None = None,
+    id_arg: str | None = None,
+    builder_module_name: str | None = None,
 ) -> Callable[[dict[str, Any]], dict[str, Any]] | None:
-    if entities_mod is None:
+    if entities_mod is not None:
+        for attr in (f"build_write_{model_name}_entity", f"build_planned_{model_name}_entity"):
+            if hasattr(entities_mod, attr):
+                return getattr(entities_mod, attr)
+        resource_attr = f"build_{model_name}_resource_entity"
+        if hasattr(entities_mod, resource_attr):
+            build_resource = getattr(entities_mod, resource_attr)
+
+            def _from_resource(record: dict[str, Any], fn=build_resource) -> dict[str, Any]:
+                return fn(str(record.get("uuid") or ""), record)
+
+            return _from_resource
+    resolved_namespace = namespace
+    if resolved_namespace is None and entities_mod is not None:
+        resolved_namespace = getattr(entities_mod, "NAMESPACE", None)
+    if resolved_namespace is None and builder_module_name:
+        try:
+            resolved_namespace = namespace_from_entities(
+                entities_mod,
+                model_name,
+                builder_module_name,
+            )
+        except (ImportError, AttributeError, ValueError):
+            return None
+    if resolved_namespace is None:
         return None
-    for attr in (f"build_write_{model_name}_entity", f"build_planned_{model_name}_entity"):
-        if hasattr(entities_mod, attr):
-            return getattr(entities_mod, attr)
-    resource_attr = f"build_{model_name}_resource_entity"
-    if hasattr(entities_mod, resource_attr):
-        build_resource = getattr(entities_mod, resource_attr)
-        return lambda record, fn=build_resource: fn(
-            str(record.get("uuid") or ""),
-            record,
-        )
-    return None
+    return synthesize_write_builder(
+        namespace=resolved_namespace,
+        model_name=model_name,
+        id_arg=id_arg,
+        entities_mod=entities_mod,
+    )
 
 
 def _find_write_plan_fn(builder_module_name: str, http_method: str) -> Callable[[], dict[str, Any]] | None:

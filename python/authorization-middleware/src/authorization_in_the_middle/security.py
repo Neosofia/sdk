@@ -39,7 +39,12 @@ from authorization_in_the_middle.rest_entities import (
     _resource_uid_for_write_member,
     _resource_uid_from_entity,
 )
-from authorization_in_the_middle.route_inference import infer_crud_action, infer_id_arg, infer_resource
+from authorization_in_the_middle.route_inference import (
+    infer_crud_action,
+    infer_id_arg,
+    infer_resource,
+    inferred_catalog_overrides,
+)
 from authorization_in_the_middle.service_conventions import (
     _find_catalog_builder,
     _find_resource_builder,
@@ -73,6 +78,8 @@ def with_security(
     enforce_active_actor: bool = True,
     resource_type: str | None = None,
     catalog_id: str | None = None,
+    catalog_id_from: str | None = None,
+    catalog_attrs: dict[str, Any] | Callable[[], dict[str, Any]] | None = None,
     entity_module: str | None = None,
     validate_openapi: bool = False,
     openapi_spec_path: str | None = None,
@@ -95,8 +102,9 @@ def with_security(
     Sets ``g.validated_body``, ``g.planned_body``, ``g.present_fields``, and
     ``g.write_resource`` on REST writes.
 
-    ``src.authorization.entities`` must provide ``NAMESPACE``, ``resolve_principal()``,
-    and ``build_{model}_resource_entity`` / ``build_{catalog}_resource`` as needed.
+    ``src.authorization.entities`` must provide ``NAMESPACE``, ``resolve_principal()``, and
+    optionally ``registry_{model}_cedar_attrs`` / ``member_attrs`` for synthesized builders.
+    Named ``build_*`` hooks remain supported as overrides.
     """
     if action is not None and resource is not None:
         raise TypeError("with_security: pass action or resource, not both")
@@ -107,18 +115,36 @@ def with_security(
         use_crud_inference = action is None
         write_record: dict[str, Any] | None = None
         request_present_fields: list[str] = []
+        auto_catalog = catalog_id_from is None and catalog_attrs is None
 
-        infer_kw = _infer_kwargs(
-            resource_fn=resource_fn,
-            entities_fn=entities_fn,
-            namespace=namespace,
-            id_arg=id_arg,
-            resource_type=resource_type,
-            catalog_id=catalog_id,
-            entity_module=entity_module,
-            entities_mod=entities_mod,
-            resource_loader=resource_loader,
-        )
+        def _resolved_catalog() -> tuple[str | None, Any]:
+            if not auto_catalog:
+                return catalog_id_from, catalog_attrs
+            overrides = inferred_catalog_overrides()
+            return (
+                catalog_id_from or overrides.get("catalog_id_from"),
+                catalog_attrs if catalog_attrs is not None else overrides.get("catalog_attrs"),
+            )
+
+        def _infer_kw_at_request() -> dict[str, Any]:
+            resolved_catalog_id_from, resolved_catalog_attrs = _resolved_catalog()
+            return _infer_kwargs(
+                resource_fn=resource_fn,
+                entities_fn=entities_fn,
+                namespace=namespace,
+                id_arg=id_arg,
+                resource_type=resource_type,
+                catalog_id=catalog_id,
+                catalog_id_from=resolved_catalog_id_from,
+                catalog_attrs=resolved_catalog_attrs,
+                entity_module=entity_module,
+                entities_mod=entities_mod,
+                resource_loader=resource_loader,
+            )
+
+        inferred_namespace = namespace
+        if inferred_namespace is None and entities_mod is not None:
+            inferred_namespace = getattr(entities_mod, "NAMESPACE", None)
 
         def _authorize_write_entities(act: str) -> list[dict[str, Any]] | None:
             if write_record is None:
@@ -130,6 +156,9 @@ def with_security(
                     model_name,
                     write_record,
                     present_fields=request_present_fields or None,
+                    namespace=inferred_namespace,
+                    id_arg=id_arg,
+                    builder_module_name=entity_module or model_name,
                 )
             return None
 
@@ -142,6 +171,9 @@ def with_security(
                     entities_mod,
                     model_name,
                     write_record,
+                    namespace=inferred_namespace,
+                    id_arg=id_arg,
+                    builder_module_name=entity_module or model_name,
                 )
             if verb == "update":
                 member_arg = _resolve_id_arg(id_arg, model_name)
@@ -155,6 +187,8 @@ def with_security(
                     model_mod,
                     model_name,
                     entity_module or model_name,
+                    namespace=inferred_namespace,
+                    id_arg=id_arg,
                 )
                 entity = build_resource_entity(resource_id, write_record)
                 return _resource_uid_from_entity(entity)
@@ -169,7 +203,7 @@ def with_security(
                 write_uid = _authorize_write_resource_uid(act)
                 if write_uid is not None:
                     return write_uid
-                rf, _, _, _ = _infer_rest_fns(act, **infer_kw)
+                rf, _, _, _ = _infer_rest_fns(act, **_infer_kw_at_request())
                 return rf()
 
             def resolved_entities_fn() -> list[dict[str, Any]]:
@@ -177,7 +211,7 @@ def with_security(
                 write_entities = _authorize_write_entities(act)
                 if write_entities is not None:
                     return write_entities
-                _, ef, _, _ = _infer_rest_fns(act, **infer_kw)
+                _, ef, _, _ = _infer_rest_fns(act, **_infer_kw_at_request())
                 return ef()
 
             action_for_authz: str | Callable[[], str] = resolved_action
@@ -197,7 +231,7 @@ def with_security(
             else:
                 resource_fn_local, entities_fn_local, resolved_resource_name, target_id_arg = _infer_rest_fns(
                     action,  # type: ignore[arg-type]
-                    **infer_kw,
+                    **_infer_kw_at_request(),
                 )
 
         def resolved_context_fn() -> dict[str, Any]:
@@ -270,7 +304,7 @@ def with_security(
             if use_crud_inference:
                 act = infer_crud_action(crud_resource, id_arg=id_arg)
                 _, _, log_resource_name, log_target_id_arg = _infer_rest_fns(
-                    act, **infer_kw
+                    act, **_infer_kw_at_request()
                 )
 
             set_authz_outcome_log_extra(

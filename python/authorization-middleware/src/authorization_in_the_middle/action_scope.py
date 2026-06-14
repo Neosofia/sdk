@@ -52,11 +52,19 @@ def _resolve_id_arg(id_arg: str | None, model_name: str) -> str:
 def _uses_catalog_scope(model_name: str, verb: str, id_arg: str | None) -> bool:
     """True when the Cedar **Resource** is a **Catalog**, not a **Member**.
 
-    - ``list`` / ``create`` → Catalog (e.g. ``GET /api/services`` → ``ServiceCatalog``)
+    - ``list`` / ``create`` → Catalog when no member id is in the path
+      (e.g. ``GET /api/services`` → ``ServiceCatalog``)
+    - ``list`` / ``create`` with a member id present → Member
+      (e.g. ``GET /care-episodes/<patient_uuid>/records``)
     - ``audit:list`` (and similar) with no member id in the path → Catalog
       (e.g. ``GET /api/services/audits`` — ``audits`` is not an id)
     - Same action with a member id present → Member (e.g. ``GET .../<slug>/audits``)
     """
+    if has_request_context():
+        member_arg = _resolve_id_arg(id_arg, model_name)
+        view_args = request.view_args or {}
+        if member_arg in view_args:
+            return False
     if _is_catalog_collection(verb) or _is_catalog_singleton(model_name, verb):
         return True
     if not has_request_context():

@@ -63,10 +63,10 @@ Principal on every row = JWT **`sub`**.
 | **Update** one user (partial) | `PATCH /api/v1/users/{user_uuid}` | `user:update` | `users::User` | Path `user_uuid` |
 | **Delete** one user | `DELETE /api/v1/users/{user_uuid}` | `user:delete` | `users::User` | Path `user_uuid` |
 | **Get** a user’s audit history | `GET /api/v1/users/{user_uuid}/audits` | `user:read` | `users::User` | Path `user_uuid` |
-| **Read** role picklists | `GET /api/v1/roles` | `role_catalog:read` | `users::RoleCatalog` | Fixed `role-catalog` |
+| **List** role picklists | `GET /api/v1/roles` | `role:list` | `users::RoleCatalog` | Fixed `role-catalog` |
 | **Rotate** a service credential | `POST /api/services/{slug}/rotate` | `service:rotate` | `authentication::Service` | Path `slug` |
 
-**Notes:** List/create target **`UserCatalog`** because the URL has no member id. **PUT** and **PATCH** often share `user:update`. **DELETE** is the usual REST shape — add `user:delete` to policy when you ship it (not on user v1). **Read role picklists** — `/roles` is the API path; Cedar uses `role_catalog:read` on a singleton catalog (static picklists), not `role:list`.
+**Notes:** List/create target **`UserCatalog`** because the URL has no member id. **PUT** and **PATCH** often share `user:update`. **DELETE** is the usual REST shape — add `user:delete` to policy when you ship it (not on user v1).
 
 Example — list users:
 
@@ -219,7 +219,7 @@ Pass `allowed=[...]` to the helper to omit the attribute unless the payload matc
 | `neosofia:token_type` | `tokenType` | `human` or `service` |
 | other `neosofia:*` | same name after prefix | e.g. `neosofia:foo` → `foo` |
 
-`extract_jwt_principal_entity` / `extract_jwt_principal_uid` build a principal from `g.jwt_claims` only. Production services usually use `resolve_principal()` to enrich JWT attrs with registry row data.
+`extract_jwt_principal_entity` / `extract_jwt_principal_uid` build a principal from `g.jwt_claims`. Service ``entities`` modules should expose ``resolve_principal()`` as a thin wrapper around ``resolve_jwt_principal(namespace, actor_classes=…)`` — JWT-only, with optional tier-1 boolean flags when actor classes are configured.
 
 #### Tier-1 actor flags (`cedar_attrs.tier1_actor_flags`)
 
@@ -300,18 +300,28 @@ Resolution order: path arg → query → JSON body → principal `uuid` when `se
 | `write_exact_set_field_attrs(write_record, resource, present_fields, field, allowed=…)` | Cedar `{field}Exact` for exact-set policy checks |
 | `align_shared_uid_entity_attrs(principal, resource, source=…)` | Identical attrs when UIDs match (cedarpy requirement) |
 
-#### Service conventions (`with_security` discovers)
+#### Service conventions (`with_security` discovers or synthesizes)
 
 | Convention | Location | Used for |
 |------------|----------|----------|
-| `NAMESPACE`, `resolve_principal()` | `src.authorization.entities` | Principal entity |
-| `build_{model}_resource_entity(id, row)` | entities or models | Member reads |
-| `build_write_{model}_entity(record)` | entities | Write authz resource |
-| `build_{catalog}_resource()` | entities | Catalog list/create |
+| `NAMESPACE`, `resolve_principal()` | `src.authorization.entities` | Principal entity (`resolve_jwt_principal` wrapper) |
+| `registry_{model}_cedar_attrs` / `member_attrs` | entities | **Synthesized** member + write Cedar attrs (preferred) |
+| `build_{model}_resource_entity(id, row)` | entities or models | Optional override for member reads |
+| `build_write_{model}_entity(record)` | entities | Optional override for write authz |
+| `build_{catalog}_resource()` | entities | Optional override for catalog list/create |
 | `plan_create_from_openapi`, `plan_patch_from_openapi`, … | `src.services.{model}_service` | Planned row before Cedar on writes |
-| `{MODEL}_CATALOG_ID`, `ROLE_CATALOG_ID`, … | entities | Fixed catalog entity ids |
 
-Override any inferred `resource_fn` / `entities_fn` when your layout does not match these conventions.
+Standard CRUD routes need only `NAMESPACE`, `resolve_principal()`, and a member attrs mapper. Named `build_*` hooks remain supported as overrides.
+
+Declarative overrides on `@with_security` (no `entities_fn` / `resource_fn` pairs):
+
+| Parameter | Use when |
+|-----------|----------|
+| `catalog_id_from="tenant_uuid"` | Override inferred catalog id path param |
+| `catalog_attrs={...}` or callable | Override inferred Cedar attrs on the catalog resource |
+| `resource_type` + `catalog_id` | Custom action on a fixed catalog/singleton (`user:provision` → `UserProvisioning`) |
+
+Nested routes like `/tenants/<tenant_uuid>/users` infer `user:list`, catalog id `tenant_uuid`, and `tenantId` automatically — no overrides required.
 
 #### Flask `g` attributes (`with_security` writes)
 
@@ -348,8 +358,8 @@ Omit ``action`` to infer CRUD from HTTP method + path. Pass any parameter explic
 | Action shape | Infers |
 |--------------|--------|
 | `user:read`, `profile:read`, … | Member — `{Model}` + path arg `{model}_uuid` (or inferred from route rule) |
-| `user:list`, `user:create`, … | Collection — `{Model}Catalog` + `{MODEL}_CATALOG_ID` |
-| `role_catalog:read`, … | Catalog singleton — `RoleCatalog` + `ROLE_CATALOG_ID` |
+| `user:list`, `role:list`, `user:create`, … | Collection — `{Model}Catalog` + `{model}-catalog` |
+| `role_catalog:read`, … | Catalog singleton (prefer `{model}:list` when the route is `GET /{models}`) |
 
 **Path argument name** is inferred from the route rule (`/<tenant_uuid>` → `tenant_uuid`). When that fails, the fallback is `{model}_uuid`. Pass `id_arg` only for non-uuid keys such as `slug`.
 

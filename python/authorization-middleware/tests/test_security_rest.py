@@ -1,5 +1,12 @@
 from flask import Flask
 
+from authorization_in_the_middle.route_inference import (
+    infer_catalog_scope,
+    infer_crud_action,
+    infer_id_arg,
+    infer_resource,
+    infer_scope_bindings,
+)
 from authorization_in_the_middle.security import (
     _action_parts,
     _catalog_constant_name,
@@ -11,10 +18,19 @@ from authorization_in_the_middle.security import (
     _resource_uid_for_action,
     _type_to_snake,
     _uses_catalog_scope,
-    infer_crud_action,
-    infer_id_arg,
-    infer_resource,
 )
+
+
+def test_infer_roles_collection_list():
+    app = Flask(__name__)
+
+    @app.route("/api/v1/roles")
+    def list_roles():
+        return ""
+
+    with _bind_request(app, "/api/v1/roles"):
+        assert infer_resource() == "role"
+        assert infer_crud_action() == 'Action::"role:list"'
 
 
 def test_action_parts():
@@ -97,6 +113,48 @@ def test_infer_resource():
         assert infer_resource() == "person"
 
 
+def test_infer_nested_tenant_users_collection():
+    app = Flask(__name__)
+
+    @app.route("/api/v1/tenants/<tenant_uuid>/users")
+    def tenant_users(tenant_uuid: str):
+        return tenant_uuid
+
+    with _bind_request(app, "/api/v1/tenants/t1/users"):
+        assert infer_resource() == "user"
+        assert infer_crud_action() == 'Action::"user:list"'
+        assert infer_id_arg() is None
+        assert infer_scope_bindings() == [("tenant_uuid", "tenantId")]
+        assert infer_catalog_scope() == ("tenant_uuid", {"tenantId": "t1"})
+
+
+def test_infer_nested_tenant_users_member():
+    app = Flask(__name__)
+
+    @app.route("/api/v1/tenants/<tenant_uuid>/users/<user_uuid>")
+    def tenant_user(tenant_uuid: str, user_uuid: str):
+        return user_uuid
+
+    with _bind_request(app, "/api/v1/tenants/t1/users/u1"):
+        assert infer_resource() == "user"
+        assert infer_crud_action() == 'Action::"user:read"'
+        assert infer_id_arg() == "user_uuid"
+
+
+def test_infer_member_subresource_audits():
+    app = Flask(__name__)
+
+    @app.route("/api/v1/users/<user_uuid>/audits")
+    def user_audits(user_uuid: str):
+        return user_uuid
+
+    with _bind_request(app, "/api/v1/users/u1/audits"):
+        assert infer_resource() == "user"
+        assert infer_crud_action() == 'Action::"user:read"'
+        assert infer_id_arg() == "user_uuid"
+        assert infer_scope_bindings() == []
+
+
 def test_infer_crud_action_collection():
     app = Flask(__name__)
 
@@ -155,6 +213,17 @@ def test_resolve_id_arg_falls_back_to_model_uuid():
     assert _resolve_id_arg(None, "user") == "user_uuid"
 
 
+def test_uses_catalog_scope_member_list_when_id_in_path():
+    app = Flask(__name__)
+
+    @app.route("/api/v1/care-episodes/<patient_uuid>/records")
+    def patient_records(patient_uuid: str):
+        return patient_uuid
+
+    with _bind_request(app, "/api/v1/care-episodes/u1/records"):
+        assert _uses_catalog_scope("care_episode", "list", "patient_uuid") is False
+
+
 def test_uses_catalog_scope_for_compound_list_without_member():
     app = Flask(__name__)
 
@@ -195,6 +264,16 @@ def test_resource_uid_for_audit_list_catalog():
             entities_mod=Entities,
         )
     assert uid == 'authentication::ServiceCatalog::"service-catalog"'
+
+
+def test_find_catalog_builder_synthesizes_when_hook_missing():
+    class Entities:
+        NAMESPACE = "users"
+
+    builder = _find_catalog_builder(Entities(), None, "UserCatalog")
+    entity = builder()
+    assert entity["uid"]["__entity"]["type"] == "users::UserCatalog"
+    assert entity["uid"]["__entity"]["id"] == "user-catalog"
 
 
 def test_find_catalog_builder_prefers_resource_name():
