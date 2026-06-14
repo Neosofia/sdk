@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-06-14
+
+### Changed
+
+- `FilesystemPolicySetSource` loads Cedar policy files from nested directories (`**/*.cedar`), not only the bundle root.
+
 ## [0.7.2] - 2026-06-14
 
 ### Fixed

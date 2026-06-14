@@ -20,9 +20,13 @@ class PolicySetSource(Protocol):
 
 
 def _load_policy_files(policies_dir: Path) -> list[dict[str, str]]:
-    cedar_files = sorted(policies_dir.glob("*.cedar"))
+    cedar_files = sorted(policies_dir.rglob("*.cedar"))
     return [
-        {"name": policy_file.stem, "content": policy_file.read_text(encoding="utf-8")}
+        {
+            "name": policy_file.stem,
+            "path": str(policy_file.relative_to(policies_dir)),
+            "content": policy_file.read_text(encoding="utf-8"),
+        }
         for policy_file in cedar_files
     ]
 
@@ -37,7 +41,7 @@ def _compute_version(policies: list[dict[str, str]]) -> str:
 
 def _policy_mtimes(policies_dir: Path, policies: list[dict[str, str]]) -> list[float]:
     return [
-        (policies_dir / f"{policy['name']}.cedar").stat().st_mtime
+        (policies_dir / policy["path"]).stat().st_mtime
         for policy in policies
     ]
 

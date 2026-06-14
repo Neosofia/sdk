@@ -29,3 +29,16 @@ def test_cedar_evaluator_uses_filesystem_policy_source(tmp_path):
         'demo::Document::"d1"',
         [],
     )
+
+
+def test_filesystem_policy_source_loads_nested_cedar_files(tmp_path):
+    nested = tmp_path / "menu"
+    nested.mkdir()
+    (nested / "operator_menu.cedar").write_text(
+        'permit (principal, action == Action::"View", resource);',
+        encoding="utf-8",
+    )
+
+    policy_set = FilesystemPolicySetSource(tmp_path).get_policy_set()
+
+    assert [policy["name"] for policy in policy_set["policies"]] == ["operator_menu"]
