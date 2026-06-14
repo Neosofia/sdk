@@ -52,7 +52,7 @@ dev = [
 
 [[package]]
 name = "authorization-in-the-middle"
-version = "0.7.0"
+version = "0.7.1"
 source = { editable = "python/authorization-middleware" }
 dependencies = [
     { name = "cedarpy" },

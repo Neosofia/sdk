@@ -188,7 +188,7 @@ def with_security(
                     model_name,
                     entity_module or model_name,
                     namespace=inferred_namespace,
-                    id_arg=id_arg,
+                    id_arg=member_arg,
                 )
                 entity = build_resource_entity(resource_id, write_record)
                 return _resource_uid_from_entity(entity)

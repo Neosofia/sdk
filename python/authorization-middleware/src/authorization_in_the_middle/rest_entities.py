@@ -74,7 +74,7 @@ def _rest_entities_for_item(
         service_model,
         builder_module_name,
         namespace=namespace,
-        id_arg=id_arg,
+        id_arg=member_arg,
     )
     loaded = resource_loader(resource_id) if resource_loader else None
     principal = _resolve_principal(entities_mod)

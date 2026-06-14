@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-06-14
+
+### Fixed
+
+- Synthesized member builders now receive the resolved path id field (e.g. ``tenant_uuid`` from route inference), not only an explicit ``@with_security(id_arg=…)`` override. Fixes empty Cedar attrs when ``registry_{model}_cedar_attrs`` keys differ from the default ``uuid`` row field.
+
 ## [0.7.0] - 2026-06-14
 
 ### Added
