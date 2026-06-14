@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-06-14
+
+### Fixed
+
+- Route inference treats ``/summary`` as a member subresource (``document:read`` on the parent member), not a nested ``summary:list`` catalog.
+
 ## [0.7.1] - 2026-06-14
 
 ### Fixed

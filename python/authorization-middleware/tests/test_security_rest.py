@@ -155,6 +155,20 @@ def test_infer_member_subresource_audits():
         assert infer_scope_bindings() == []
 
 
+def test_infer_member_subresource_summary():
+    app = Flask(__name__)
+
+    @app.route("/api/v1/documents/<document_id>/summary")
+    def document_summary(document_id: str):
+        return document_id
+
+    with _bind_request(app, "/api/v1/documents/d1/summary"):
+        assert infer_resource() == "document"
+        assert infer_crud_action() == 'Action::"document:read"'
+        assert infer_id_arg() == "document_id"
+        assert infer_scope_bindings() == []
+
+
 def test_infer_crud_action_collection():
     app = Flask(__name__)
 

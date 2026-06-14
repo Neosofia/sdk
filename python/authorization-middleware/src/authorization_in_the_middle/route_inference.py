@@ -64,6 +64,7 @@ _MEMBER_SUBRESOURCE_NOUNS = frozenset({
     "recoveries",
     "rotate",
     "inbox",
+    "summary",
 })
 
 
