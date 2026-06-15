@@ -14,6 +14,7 @@ from authorization_in_the_middle.rest_defaults import (
     synthesize_member_builder,
     synthesize_write_builder,
 )
+from authorization_in_the_middle.write_planners import default_plan_create_from_openapi
 
 
 def _import_entities_module():
@@ -181,4 +182,17 @@ def _find_write_plan_fn(builder_module_name: str, http_method: str) -> Callable[
         fn = getattr(service_mod, attr, None)
         if callable(fn):
             return fn
+    return None
+
+
+def resolve_write_plan_fn(
+    builder_module_name: str,
+    http_method: str,
+) -> Callable[[], dict[str, Any]] | None:
+    """Service planner when present; otherwise SDK default for ``POST`` create only."""
+    custom = _find_write_plan_fn(builder_module_name, http_method)
+    if custom is not None:
+        return custom
+    if http_method.upper() == "POST":
+        return default_plan_create_from_openapi
     return None

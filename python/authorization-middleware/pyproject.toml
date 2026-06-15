@@ -10,7 +10,7 @@ exclude = [".venv", ".venv-test", "tests"]
 
 [project]
 name = "authorization-in-the-middle"
-version = "0.7.3"
+version = "0.7.5"
 description = "Authorization middleware for Neosofia platform services."
 readme = "README.md"
 license = { text = "Apache-2.0" }

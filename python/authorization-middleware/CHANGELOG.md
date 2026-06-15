@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-06-15
+
+### Changed
+
+- ``POST`` REST writes no longer require ``plan_create_from_openapi`` in every service: the SDK synthesizes a default plan from ``g.planned_body`` plus nested path scope params.
+- Nested collection creates (e.g. ``POST …/users/{user_uuid}/interactions``) skip member write planning entirely; Cedar authorizes the scoped catalog only.
+
+## [0.7.4] - 2026-06-15
+
+### Fixed
+
+- Route inference for ``/users/{user_uuid}/interactions/{id}/messages`` now resolves to ``message:list`` on a nested collection (scoped by user and interaction) instead of ``user:read`` on the user member.
+- Nested collection ``create`` actions (e.g. ``POST …/users/{user_uuid}/interactions``) authorize against the scoped catalog entity instead of a planned member record, matching Cedar policies that permit ``interaction:create`` on ``InteractionCatalog``.
+- ``resource_fn`` for catalog actions now derives the resource UID from a service ``build_*_catalog_resource()`` hook when present, keeping it aligned with ``entities_fn``.
+
 ## [0.7.3] - 2026-06-14
 
 ### Changed

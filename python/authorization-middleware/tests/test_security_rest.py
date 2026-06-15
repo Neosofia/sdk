@@ -280,6 +280,44 @@ def test_resource_uid_for_audit_list_catalog():
     assert uid == 'authentication::ServiceCatalog::"service-catalog"'
 
 
+def test_infer_nested_interaction_messages_collection():
+    app = Flask(__name__)
+
+    @app.route("/api/v1/users/<user_uuid>/interactions/<chat_interaction_uuid>/messages")
+    def interaction_messages(user_uuid: str, chat_interaction_uuid: str):
+        return chat_interaction_uuid
+
+    with _bind_request(
+        app,
+        "/api/v1/users/u1/interactions/i1/messages",
+        method="GET",
+    ):
+        assert infer_resource() == "message"
+        assert infer_crud_action() == 'Action::"message:list"'
+        assert infer_id_arg() is None
+        assert infer_scope_bindings() == [
+            ("user_uuid", "userId"),
+            ("chat_interaction_uuid", "chat_interactionId"),
+        ]
+        assert infer_catalog_scope() == (
+            "chat_interaction_uuid",
+            {"userId": "u1", "chat_interactionId": "i1"},
+        )
+
+
+def test_infer_user_messages_still_member_subresource():
+    app = Flask(__name__)
+
+    @app.route("/api/v1/users/<user_uuid>/messages")
+    def user_messages(user_uuid: str):
+        return user_uuid
+
+    with _bind_request(app, "/api/v1/users/u1/messages", method="GET"):
+        assert infer_resource() == "user"
+        assert infer_crud_action() == 'Action::"user:read"'
+        assert infer_id_arg() == "user_uuid"
+
+
 def test_find_catalog_builder_synthesizes_when_hook_missing():
     class Entities:
         NAMESPACE = "users"

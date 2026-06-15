@@ -225,7 +225,7 @@ forbid (
 | File | You provide |
 |------|-------------|
 | `src/authorization/entities.py` | `NAMESPACE`, `resolve_principal()`, `registry_{model}_cedar_attrs` |
-| `src/services/{model}_service.py` | `plan_create_from_openapi`, `plan_patch_from_openapi`, … (writes only) |
+| `src/services/{model}_service.py` | `plan_patch_from_openapi`, … (writes that merge onto stored rows); optional `plan_create_from_openapi` when create needs normalization beyond OpenAPI |
 | Route module | `@with_security()` — no `action` / `entities_fn` overrides yet |
 
 Start in `entities.py`. The SDK calls `resolve_principal()` on every request and `registry_user_cedar_attrs` when it builds member/write entities — map Python field names to what the policy references (`tenant_uuid` → `tenantId`):
@@ -246,11 +246,11 @@ def resolve_principal() -> dict:
     return resolve_jwt_principal(NAMESPACE)  # add actor_classes= when tier-1 flags needed
 ```
 
-On POST, PUT, and PATCH, Cedar evaluates the **planned** row — validated JSON merged onto the stored record — not the raw body. The `presentFields` forbid above depends on this:
+On POST, PUT, and PATCH, Cedar evaluates the **planned** row — validated JSON merged onto the stored record for updates, or validated JSON (plus path scope on nested creates) for POST. Custom planners are required when policy inspects normalized fields the SDK cannot infer (roles, UUID placeholders, DB merge on PATCH):
 
 ```python
-def plan_create_from_openapi() -> dict: ...
-def plan_patch_from_openapi() -> dict: ...  # merges g.validated_body onto stored row
+def plan_create_from_openapi() -> dict: ...  # optional for POST; SDK default when omitted
+def plan_patch_from_openapi() -> dict: ...  # required for PATCH when Cedar judges merged member attrs
 ```
 
 Protect routes with bare `@with_security()`; inference supplies action and entity UIDs from method + path. Handlers use `g.write_resource` on create/update and `g.validated_body` / `g.patch_body` after Cedar allows:

@@ -48,11 +48,12 @@ from authorization_in_the_middle.route_inference import (
 from authorization_in_the_middle.service_conventions import (
     _find_catalog_builder,
     _find_resource_builder,
-    _find_write_plan_fn,
     _import_entities_module,
     _principal_uid,
     _resolve_principal,
+    resolve_write_plan_fn,
 )
+from authorization_in_the_middle.write_planners import default_plan_create_from_openapi
 from flask import current_app, g, jsonify, request
 from logenvelope.flask import cedar_principal_log_fields, log_request_event
 from werkzeug.exceptions import BadRequest
@@ -91,9 +92,11 @@ def with_security(
     **Default (omit ``action``):** infer CRUD **Action** from method + path. For
     inferred ``create`` / ``update``, automatically validate the body against
     ``openapi.json``, attach ``presentFields`` from raw JSON keys, and authorize
-    against the service write record via
-    ``src.services.{model}_service.plan_*_from_openapi`` and
-    ``src.authorization.entities.build_write_{model}_entity``.
+    against the write record. ``POST`` uses a service
+    ``plan_create_from_openapi`` when present, otherwise the SDK default (validated
+    body + path scope). Nested collection creates authorize the scoped catalog and
+    do not require a service planner. ``PATCH`` / ``PUT`` still require a service
+    ``plan_*_from_openapi`` when Cedar evaluates the merged member row.
 
     **Overrides:** pass ``action``, ``resource_fn``, ``entities_fn``, ``id_arg``, etc.
     for non-CRUD routes (provision, rotate credentials, nested list actions). Pass
@@ -146,10 +149,22 @@ def with_security(
         if inferred_namespace is None and entities_mod is not None:
             inferred_namespace = getattr(entities_mod, "NAMESPACE", None)
 
+        def _nested_catalog_create(act: str) -> bool:
+            """Nested collection creates authorize the scoped catalog, not a planned member."""
+            model_name, verb = _action_parts(act)
+            if verb != "create":
+                return False
+            if not _uses_catalog_scope(model_name, verb, id_arg):
+                return False
+            resolved_catalog_id_from, _ = _resolved_catalog()
+            return bool(catalog_id_from or resolved_catalog_id_from)
+
         def _authorize_write_entities(act: str) -> list[dict[str, Any]] | None:
             if write_record is None:
                 return None
             model_name, verb = _action_parts(act)
+            if verb == "create" and _nested_catalog_create(act):
+                return None
             if verb in ("create", "update"):
                 return _entities_for_write_member(
                     entities_mod,
@@ -167,6 +182,8 @@ def with_security(
                 return None
             model_name, verb = _action_parts(act)
             if verb == "create":
+                if _nested_catalog_create(act):
+                    return None
                 return _resource_uid_for_write_member(
                     entities_mod,
                     model_name,
@@ -275,24 +292,29 @@ def with_security(
                     message = exc.description if isinstance(exc, BadRequest) else str(exc)
                     return jsonify({"error": "invalid_request", "message": message}), 400
             if rest_write:
-                builder_module = entity_module
-                if builder_module is None:
-                    builder_module = _action_parts(infer_crud_action(crud_resource, id_arg=id_arg))[0]
-                plan_fn = _find_write_plan_fn(builder_module, http_method)
-                if plan_fn is None:
-                    return jsonify({
-                        "error": "invalid_request",
-                        "message": (
-                            f"REST {http_method} requires "
-                            f"src.services.{builder_module}_service.plan_*_from_openapi"
-                        ),
-                    }), 500
-                try:
-                    write_record = plan_fn()
-                    g.write_resource = write_record
-                except (ValueError, BadRequest) as exc:
-                    message = exc.description if isinstance(exc, BadRequest) else str(exc)
-                    return jsonify({"error": "invalid_request", "message": message}), 400
+                act = infer_crud_action(crud_resource, id_arg=id_arg)
+                if _nested_catalog_create(act):
+                    write_record = None
+                    g.write_resource = default_plan_create_from_openapi()
+                else:
+                    builder_module = entity_module
+                    if builder_module is None:
+                        builder_module = _action_parts(act)[0]
+                    plan_fn = resolve_write_plan_fn(builder_module, http_method)
+                    if plan_fn is None:
+                        return jsonify({
+                            "error": "invalid_request",
+                            "message": (
+                                f"REST {http_method} requires "
+                                f"src.services.{builder_module}_service.plan_*_from_openapi"
+                            ),
+                        }), 500
+                    try:
+                        write_record = plan_fn()
+                        g.write_resource = write_record
+                    except (ValueError, BadRequest) as exc:
+                        message = exc.description if isinstance(exc, BadRequest) else str(exc)
+                        return jsonify({"error": "invalid_request", "message": message}), 400
             try:
                 principal_entity = _resolve_principal(entities_mod)
                 principal_fields = cedar_principal_log_fields(principal_entity)

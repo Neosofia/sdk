@@ -12,6 +12,7 @@ from authorization_in_the_middle.action_scope import (
     _resolve_id_arg,
     _resource_uid_for_action,
     _scope_resource_name,
+    _type_to_snake,
     _uses_catalog_scope,
 )
 from authorization_in_the_middle.entities import catalog_entities, catalog_resource_uid, entity_uid
@@ -255,6 +256,23 @@ def _resource_uid_for_action_with_overrides(
             resource_type,
             catalog=True,
         )
+        snake = _type_to_snake(resource_name)
+        if entities_mod is not None and hasattr(entities_mod, f"build_{snake}_resource"):
+            try:
+                model_mod = importlib.import_module(f"src.models.{model_name}")
+            except ImportError:
+                model_mod = None
+            build_catalog = _find_catalog_builder(
+                entities_mod,
+                model_mod,
+                resource_name,
+                namespace=namespace,
+                model_name=model_name,
+                verb=verb if _is_catalog_collection(verb) else "list",
+                catalog_id=catalog_id,
+                catalog_id_from=catalog_id_from,
+            )
+            return _resource_uid_from_entity(build_catalog())
         resolved_catalog_id = default_catalog_id(
             model_name,
             verb if _is_catalog_collection(verb) else "list",

@@ -69,10 +69,14 @@ _MEMBER_SUBRESOURCE_NOUNS = frozenset({
 
 
 def _param_matches_preceding_noun(param_name: str, noun: str) -> bool:
-    """``tenant_uuid`` after ``tenants``; ``slug`` after ``services`` does not match."""
+    """``tenant_uuid`` after ``tenants``; ``chat_interaction_uuid`` after ``interactions``."""
     singular = _singularize(noun)
     prefixes = {singular, noun.rstrip("s")}
-    return any(param_name.startswith(f"{prefix}_") for prefix in prefixes if prefix)
+    if any(param_name.startswith(f"{prefix}_") for prefix in prefixes if prefix):
+        return True
+    if singular and param_name.endswith(f"{singular}_uuid"):
+        return True
+    return False
 
 
 def _collect_scope_bindings(tokens: list[tuple[str, str]], end_index: int) -> list[tuple[str, str]]:
@@ -117,6 +121,20 @@ def _route_layout(rule: str) -> tuple[str, str, str | None, list[tuple[str, str]
             return "member", noun, param_name, []
         trailing_noun = trailing_nouns[-1]
         if trailing_noun in _MEMBER_SUBRESOURCE_NOUNS:
+            # ``/users/{u}/interactions/{i}/messages`` — messages belong to the
+            # interaction member, not a subresource read on the user.
+            if len(trailing_nouns) > 1:
+                trailing_idx = next(
+                    index
+                    for index, (kind, name) in enumerate(tokens)
+                    if kind == "noun" and name == trailing_noun
+                )
+                return (
+                    "nested_collection",
+                    trailing_noun,
+                    None,
+                    _collect_scope_bindings(tokens, trailing_idx),
+                )
             return "member_subresource", noun, param_name, []
         trailing_idx = next(
             index for index, (kind, name) in enumerate(tokens) if kind == "noun" and name == trailing_noun
