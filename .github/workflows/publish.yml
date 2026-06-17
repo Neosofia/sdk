@@ -6,6 +6,7 @@ on:
       - "logenvelope/v*"
       - "authentication-in-the-middle/v*"
       - "authorization-in-the-middle/v*"
+      - "platform-client/v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -55,6 +56,10 @@ jobs:
             echo "name=authorization-in-the-middle" >> "$GITHUB_OUTPUT"
             echo "path=python/authorization-middleware" >> "$GITHUB_OUTPUT"
             echo "pyproject_path=python/authorization-middleware/pyproject.toml" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == platform-client/v* ]]; then
+            echo "name=platform-client" >> "$GITHUB_OUTPUT"
+            echo "path=python/platform-client" >> "$GITHUB_OUTPUT"
+            echo "pyproject_path=python/platform-client/pyproject.toml" >> "$GITHUB_OUTPUT"
           else
             echo "Unsupported tag format: $TAG"
             exit 1

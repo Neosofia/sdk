@@ -9,6 +9,7 @@ dev = [
     "logenvelope",
     "authentication-in-the-middle",
     "authorization-in-the-middle",
+    "platform-client",
 ]
 
 [tool.uv.workspace]
@@ -16,6 +17,7 @@ members = [
     "python/authentication-middleware",
     "python/authorization-middleware",
     "python/logenvelope",
+    "python/platform-client",
 ]
 
 [tool.uv]
@@ -25,3 +27,4 @@ package = false
 logenvelope = { workspace = true }
 authentication-in-the-middle = { workspace = true }
 authorization-in-the-middle = { workspace = true }
+platform-client = { workspace = true }

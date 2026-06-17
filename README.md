@@ -6,7 +6,10 @@ Polyglot collection of shared packages for the Neosofia platform.
 
 ```
 python/
-  logenvelope/           # Structured JSON logger (conforms to Neosofia/schemas log-v1.0.0.json)
+  logenvelope/                 # Structured JSON logger
+  platform-client/             # Service JWT broker; BFF/proxy outbound headers
+  authentication-in-the-middle/
+  authorization-in-the-middle/
 ```
 
 Each package is independently versioned and published. Languages are
@@ -17,6 +20,9 @@ top-level directories; packages live under their language.
 | Package | Language | Distribution name | Purpose |
 |---|---|---|---|
 | [`logenvelope`](python/logenvelope) | Python | `logenvelope` | Structured JSON logger conforming to the platform log schema |
+| [`platform-client`](python/platform-client) | Python | `platform-client` | Service JWT broker; BFF/proxy outbound headers |
+| [`authentication-in-the-middle`](python/authentication-middleware) | Python | `authentication-in-the-middle` | Flask JWT authentication middleware |
+| [`authorization-in-the-middle`](python/authorization-middleware) | Python | `authorization-in-the-middle` | Cedar authorization middleware |
 
 ## Development
 
@@ -40,7 +46,7 @@ Wheels and GitHub Release assets are **CI-only** (`.github/workflows/publish.yml
    ```
 4. Confirm the `publish` workflow succeeds. The tag must point at the commit that contains the version bump; otherwise validation fails with a version mismatch.
 
-Supported tag prefixes: `logenvelope/v*`, `authentication-in-the-middle/v*`, `authorization-in-the-middle/v*`.
+Supported tag prefixes: `logenvelope/v*`, `authentication-in-the-middle/v*`, `authorization-in-the-middle/v*`, `platform-client/v*`.
 
 **Do not** upload `dist/*`, run `gh release create` locally, or run `gh release edit` from a laptop. If a release is missing assets or stuck in draft after a tag move, re-run the **publish** workflow via Actions → **workflow_dispatch** with the same tag name (CI rebuilds wheels and publishes the release).
 
