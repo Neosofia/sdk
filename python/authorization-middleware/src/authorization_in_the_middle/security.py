@@ -13,6 +13,7 @@ fixed catalog id), **Entity** (principal + resource records for Cedar).
 from __future__ import annotations
 
 import importlib
+import logging
 from functools import wraps
 from typing import Any, Callable
 
@@ -315,6 +316,13 @@ def with_security(
                     except (ValueError, BadRequest) as exc:
                         message = exc.description if isinstance(exc, BadRequest) else str(exc)
                         return jsonify({"error": "invalid_request", "message": message}), 400
+                    except OSError as exc:
+                        log_request_event(
+                            "write_plan_failed",
+                            level=logging.WARNING,
+                            error_type=type(exc).__name__,
+                        )
+                        return jsonify({"error": "internal_server_error"}), 500
             try:
                 principal_entity = _resolve_principal(entities_mod)
                 principal_fields = cedar_principal_log_fields(principal_entity)
