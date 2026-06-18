@@ -6,12 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.7.6] - 2026-06-18
-
-### Changed
-
-- OpenAPI write planning logs ``write_plan_failed`` at **WARNING** when body planning raises ``OSError`` and returns HTTP 500.
-
 ## [0.7.5] - 2026-06-15
 
 ### Changed
