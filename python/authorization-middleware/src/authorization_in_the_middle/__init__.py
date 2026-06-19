@@ -40,6 +40,14 @@ from authorization_in_the_middle.entities import (
     resolve_entity_id,
 )
 from authorization_in_the_middle.openapi_request import bind_openapi_spec, init_openapi_spec
+from authorization_in_the_middle.audit_attribution import (
+    AuditActor,
+    CLIENT_AUDIT_ATTRIBUTION_FIELDS,
+    HUMAN_AUDIT_ACTOR_TYPE,
+    SERVICE_AUDIT_ACTOR_TYPE,
+    reject_client_audit_attribution,
+    request_audit_actor,
+)
 from authorization_in_the_middle.flask_identity import (
     build_jwt_principal_entity,
     build_service_principal_entity,
@@ -61,8 +69,14 @@ from authorization_in_the_middle.policy_sources import (
     StaticPolicySetSource,
 )
 
-version = "0.7.0"
+version = "0.7.7"
 __all__ = [
+    "AuditActor",
+    "CLIENT_AUDIT_ATTRIBUTION_FIELDS",
+    "HUMAN_AUDIT_ACTOR_TYPE",
+    "SERVICE_AUDIT_ACTOR_TYPE",
+    "reject_client_audit_attribution",
+    "request_audit_actor",
     "CedarEvaluator",
     "FilesystemPolicySetSource",
     "StaticPolicySetSource",

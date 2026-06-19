@@ -12,6 +12,7 @@ _CEDAR_ATTR_ALIASES = {
     "tenant_type": "tenantType",
     "tenant_uuid": "tenantId",
     "session_actors": "sessionActors",
+    "service_uuid": "serviceUuid",
 }
 
 

@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-06-19
+
+### Added
+
+- JWT-derived audit attribution helpers: `request_audit_actor`, `reject_client_audit_attribution`, and exported actor type constants (`HUMAN_AUDIT_ACTOR_TYPE`, `SERVICE_AUDIT_ACTOR_TYPE`).
+- Service tokens map `neosofia:service_uuid` to Cedar attrs as `serviceUuid` for registry UUID resolution on service principals.
+
+### Changed
+
+- Services should derive `changed_by_uuid` / `changed_by_type` from the authenticated JWT via `request_audit_actor()`; client-supplied audit fields must be rejected with `reject_client_audit_attribution()`.
+
 ## [0.7.5] - 2026-06-15
 
 ### Changed
